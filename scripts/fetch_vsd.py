@@ -15,7 +15,8 @@ import json
 import sys
 import time
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+VN_TZ = timezone(timedelta(hours=7))
 import re
 import logging
 import hashlib
@@ -1421,7 +1422,7 @@ class VSDFetcher:
         try:
             logger.info(f"🔍 VSD: Crawling tin tức thị trường cơ sở (multiple pages)...")
             filtered_news = []
-            latest_date_found = datetime.now().date()
+            latest_date_found = datetime.now(VN_TZ).date()
             
             if self.mode == 'excel_urls':
                 # Đọc file excel_urls
@@ -1482,7 +1483,7 @@ class VSDFetcher:
                 max_pages = 25  # Tối đa 25 trang
                 
                 # Calculate cutoff date
-                today = datetime.now().date()
+                today = datetime.now(VN_TZ).date()
                 if self.mode == 'date_range':
                     cutoff_date = self.date_from
                 else:
@@ -1653,7 +1654,7 @@ class VSDFetcher:
                             published_at = f"{news['date']} 00:00:00" if news['date'] else None
 
                         # 2. Thu thập ngày/giờ lấy dữ liệu (collected_at)
-                        now_datetime = datetime.now()
+                        now_datetime = datetime.now(VN_TZ)
                         collected_at = now_datetime.strftime('%d/%m/%Y %H:%M:%S')
 
                         result_item = {
@@ -1688,7 +1689,7 @@ class VSDFetcher:
                             else:
                                 published_at = f"{news['date']} 00:00:00" if news['date'] else None
                                 
-                            now_datetime = datetime.now()
+                            now_datetime = datetime.now(VN_TZ)
                             collected_at = now_datetime.strftime('%d/%m/%Y %H:%M:%S')
                             
                             # Return basic item on final failure
@@ -1878,7 +1879,7 @@ class VSDFetcher:
                 'count': total_count,
                 'url': self.news_url,
                 'pages_crawled': page - 1 if self.mode != 'excel_urls' else 0,
-                'fetched_at': datetime.now().isoformat(),
+                'fetched_at': datetime.now(VN_TZ).isoformat(),
                 'merge_info': f'{len(result_data)} new records merged with existing' if self.mode != 'excel_urls' else 'EXCEL_URLS mode (no merge)'
             }
 
@@ -2055,7 +2056,7 @@ class VSDFetcher:
                     'file_size': file_size,
                     'new_records': new_count,
                     'total_records': len(final_records),
-                    'timestamp': datetime.now().isoformat()
+                    'timestamp': datetime.now(VN_TZ).isoformat()
                 }
             else:
                 return {
