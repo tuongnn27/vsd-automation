@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VPS Automation VHCK - Quản Lý Quyền Chứng Khoán</title>
+    <title>VSD Information Portal - Cổng Thông Tin Quyền Chứng Khoán</title>
     <style>
         * {
             margin: 0;
@@ -437,8 +437,6 @@
             line-height: 1.6;
             white-space: pre-wrap;
             word-wrap: break-word;
-            max-height: 400px;
-            overflow-y: auto;
         }
 
         .action-buttons {
@@ -534,6 +532,7 @@
             font-size: 12px;
             color: #64748b;
             margin-top: 10px;
+            text-align: right;
         }
 
         @media (max-width: 768px) {
@@ -554,6 +553,7 @@
 
             .filter-buttons {
                 flex-direction: column;
+                width: 100%;
             }
 
             .filter-buttons .btn {
@@ -655,6 +655,27 @@
             background: #166534;
             border-color: #166534;
         }
+        /* Custom active state colors for status filter buttons */
+        .filter-buttons .btn.status-btn-all.active {
+            background: #4f46e5 !important;
+            border-color: #4f46e5 !important;
+            color: white !important;
+        }
+        .filter-buttons .btn.status-btn-pending.active {
+            background: #d97706 !important;
+            border-color: #d97706 !important;
+            color: white !important;
+        }
+        .filter-buttons .btn.status-btn-confirmed.active {
+            background: #059669 !important;
+            border-color: #059669 !important;
+            color: white !important;
+        }
+        .filter-buttons .btn.status-btn-rejected.active {
+            background: #dc2626 !important;
+            border-color: #dc2626 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -662,56 +683,89 @@
         <header>
             <div class="header-content">
                 <div>
-                    <h1>VPS Automation VHCK</h1>
-                    <p style="color: #94a3b8; margin-top: 5px;">Hệ thống Quản Lý Quyền Chứng Khoán</p>
+                    <h1>VSD Information Portal</h1>
+                    <p style="color: #94a3b8; margin-top: 5px;">Cổng Thông Tin Quyền Chứng Khoán</p>
                 </div>
                 <div class="header-info" style="display: flex; gap: 10px; align-items: center;">
-                    <span class="status-badge status-pending" id="overallStatus">CHỜ XỬ LÝ</span>
-                    <button class="btn btn-primary" onclick="loadDataFromFile()">Tải Dữ Liệu</button>
                     <a href="./data/vsd_records.xlsx" class="btn btn-excel" download>📊 Tải Excel Gốc</a>
                     <button class="btn btn-excel-current" onclick="exportToExcel()">📥 Xuất Excel Hiện Tại</button>
                 </div>
             </div>
 
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value" id="totalRecords">0</div>
-                    <div class="stat-label">Tổng Bản Ghi</div>
+            <div class="stats-container" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
+                <div class="stats-group">
+                    <div class="stats-group-title" style="font-size: 13px; color: #38bdf8; font-weight: 600; text-transform: uppercase; margin-bottom: 10px;">Thống Kê Tổng Quan</div>
+                    <div class="stats" style="display: flex; gap: 30px; border-top: none; padding-top: 0; margin-bottom: 0;">
+                        <div class="stat">
+                            <div class="stat-value" id="totalRecords">0</div>
+                            <div class="stat-label">Tổng Bản Ghi</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="confirmedCount">0</div>
+                            <div class="stat-label">Đã Xác Nhận</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="rejectedCount">0</div>
+                            <div class="stat-label">Bị Từ Chối</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="pendingCount">0</div>
+                            <div class="stat-label">Chờ Xử Lý</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat">
-                    <div class="stat-value" id="confirmedCount">0</div>
-                    <div class="stat-label">Đã Xác Nhận</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="rejectedCount">0</div>
-                    <div class="stat-label">Bị Từ Chối</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="pendingCount">0</div>
-                    <div class="stat-label">Chờ Xử Lý</div>
+                
+                <div class="stats-group" style="text-align: right;">
+                    <div class="stats-group-title" style="font-size: 13px; color: #10b981; font-weight: 600; text-transform: uppercase; margin-bottom: 10px;" id="lastDayStatsTitle">Thống Kê Trong Ngày Cập Nhật Cuối</div>
+                    <div class="stats" style="display: flex; gap: 30px; justify-content: flex-end; border-top: none; padding-top: 0; margin-bottom: 0;">
+                        <div class="stat">
+                            <div class="stat-value" id="totalRecordsLastDay" style="color: #10b981;">0</div>
+                            <div class="stat-label">Tổng Bản Ghi</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="confirmedCountLastDay" style="color: #10b981;">0</div>
+                            <div class="stat-label">Đã Xác Nhận</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="rejectedCountLastDay" style="color: #10b981;">0</div>
+                            <div class="stat-label">Bị Từ Chối</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="pendingCountLastDay" style="color: #10b981;">0</div>
+                            <div class="stat-label">Chờ Xử Lý</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="timestamp" id="lastUpdate">Lần cập nhật cuối: --</div>
         </header>
 
-        <div class="toolbar">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Tìm kiếm theo mã, tên tổ chức hoặc tên chứng khoán..." onkeyup="filterTable()">
+        <div class="toolbar" style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 30px;">
+            <div style="display: flex; gap: 15px; justify-content: space-between; align-items: center; flex-wrap: wrap; width: 100%;">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Tìm kiếm theo mã, tên tổ chức hoặc tên chứng khoán..." onkeyup="filterTable()">
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <select id="dateFilterType" class="btn" style="padding: 8px 12px; background: #1e293b; color: #e0e0e0; border: 1px solid #334155; border-radius: 6px;" onchange="filterTable()">
+                        <option value="published">Lọc theo ngày đăng tin</option>
+                        <option value="closing">Lọc theo ngày chốt</option>
+                    </select>
+                    <label style="color: #94a3b8; font-size: 13px;">Từ ngày:</label>
+                    <input type="date" id="startDate" class="btn" style="padding: 8px 12px; width: 150px;">
+                    <label style="color: #94a3b8; font-size: 13px;">Đến ngày:</label>
+                    <input type="date" id="endDate" class="btn" style="padding: 8px 12px; width: 150px;">
+                    <button class="btn btn-primary" onclick="filterTable()" style="padding: 8px 12px;">Áp Dụng Lọc</button>
+                    <button class="btn" onclick="clearDateFilter()" style="padding: 8px 12px;">Xóa lọc ngày</button>
+                </div>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <label style="color: #94a3b8; font-size: 13px;">Từ ngày:</label>
-                <input type="date" id="startDate" class="btn" style="padding: 8px 12px; width: 150px;">
-                <label style="color: #94a3b8; font-size: 13px;">Đến ngày:</label>
-                <input type="date" id="endDate" class="btn" style="padding: 8px 12px; width: 150px;">
-                <button class="btn btn-primary" onclick="filterTable()" style="padding: 8px 12px;">Áp Dụng Lọc</button>
-                <button class="btn" onclick="clearDateFilter()" style="padding: 8px 12px;">Xóa lọc ngày</button>
-            </div>
-            <div class="filter-buttons">
-                <button class="btn active" onclick="filterByStatus('all', this)">Tất Cả</button>
-                <button class="btn" onclick="filterByStatus('pending', this)">Chờ Xử Lý</button>
-                <button class="btn" onclick="filterByStatus('confirmed', this)">Đã Xác Nhận</button>
-                <button class="btn" onclick="filterByStatus('rejected', this)">Bị Từ Chối</button>
+            <div style="display: flex; justify-content: flex-start; width: 100%;">
+                <div class="filter-buttons">
+                    <button class="btn status-btn-all active" onclick="filterByStatus('all', this)">Tất Cả</button>
+                    <button class="btn status-btn-pending" onclick="filterByStatus('pending', this)">Chờ Xử Lý</button>
+                    <button class="btn status-btn-confirmed" onclick="filterByStatus('confirmed', this)">Đã Xác Nhận</button>
+                    <button class="btn status-btn-rejected" onclick="filterByStatus('rejected', this)">Bị Từ Chối</button>
+                </div>
             </div>
         </div>
 
@@ -719,22 +773,21 @@
             <table id="recordsTable">
                 <thead>
                     <tr>
-                        <th>Mã CK</th>
-                        <th>Nhóm Quyền</th>
                         <th>Ngày Đăng Tin</th>
-                        <th>Ngày Chốt / ĐKCC</th>
-                        <th>Ngày Thanh Toán</th>
-                        <th>Giá Trị HQ</th>
+                        <th>Ngày Chốt</th>
+                        <th>Mã CK</th>
+                        <th>Tiêu Đề Tin</th>
+                        <th>Nhóm Quyền</th>
                         <th>Trạng Thái</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 60px 20px;">
+                        <td colspan="6" style="text-align: center; padding: 60px 20px;">
                             <div class="empty-state">
                                 <div class="empty-state-icon">📄</div>
                                 <div class="empty-state-text">Chưa có dữ liệu</div>
-                                <p style="color: #64748b; font-size: 12px;">Nhấn nút "Tải Dữ Liệu" hoặc chạy N8n workflow để thu thập dữ liệu</p>
+                                <p style="color: #64748b; font-size: 12px;">Hệ thống tự động đồng bộ dữ liệu VSD định kỳ hàng ngày</p>
                             </div>
                         </td>
                     </tr>
@@ -747,11 +800,33 @@
     <div id="detailModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title" id="modalTitle">Chi tiết mã CK</div>
+                <div class="modal-title" id="modalTitle">Chi tiết thông tin quyền</div>
                 <button class="modal-close" onclick="closeModal()">X</button>
             </div>
             <div class="modal-body" style="display: flex; gap: 20px;">
-                <div style="flex: 1; overflow-y: auto; max-height: 70vh;">
+                <div style="flex: 1; overflow-y: auto; max-height: 70vh; padding-right: 15px;">
+                    <div class="detail-section">
+                        <div class="section-title">Thông Tin Hệ Thống</div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <div class="detail-label">Ngày Đăng Tin</div>
+                                <div class="detail-value" id="detailPublishedAt">--</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Ngày Thu Thập</div>
+                                <div class="detail-value" id="detailCollectedAt">--</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Đánh Dấu Đặc Biệt</div>
+                                <div class="detail-value" id="detailIsSpecial">--</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Đánh Dấu Đủ Thông Tin</div>
+                                <div class="detail-value" id="detailIsCompleted">--</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="detail-section">
                         <div class="section-title">Thông Tin Chung</div>
                         <div class="detail-grid">
@@ -782,14 +857,6 @@
                         <div class="section-title">Lịch Trình Thực Hiện</div>
                         <div class="detail-grid">
                             <div class="detail-item">
-                                <div class="detail-label">Ngày Đăng Tin</div>
-                                <div class="detail-value" id="detailPublishedAt">--</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Ngày Thu Thập</div>
-                                <div class="detail-value" id="detailCollectedAt">--</div>
-                            </div>
-                            <div class="detail-item">
                                 <div class="detail-label">Ngày Chốt / ĐKCC</div>
                                 <div class="detail-value" id="detailNgayChot">--</div>
                             </div>
@@ -813,7 +880,7 @@
                     </div>
 
                     <div class="detail-section">
-                        <div class="section-title">Chi Tiết Quyền Mua (Nước Ngoài & Đăng Ký)</div>
+                        <div class="section-title">Chi Tiết Quyền Mua (Chuyển Nhượng & Đăng Ký)</div>
                         <div class="detail-grid">
                             <div class="detail-item">
                                 <div class="detail-label">CN Quyền Mua Từ Ngày</div>
@@ -857,35 +924,21 @@
                     </div>
 
                     <div class="detail-section">
-                        <div class="section-title">Trạng Thái Hệ Thống</div>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <div class="detail-label">Bản Tin Đặc Biệt</div>
-                                <div class="detail-value" id="detailIsSpecial">--</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Trạng Thái Hoàn Thành</div>
-                                <div class="detail-value" id="detailIsCompleted">--</div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 15px;">
-                            <div class="detail-label">Nội Dung Trích Xuất</div>
-                            <div class="detail-value" id="detailNoiDung" style="margin-top: 8px;">--</div>
-                        </div>
+                        <div class="section-title">Nội dung</div>
+                        <div class="detail-value" id="detailNoiDung">--</div>
                     </div>
 
-                    <div class="detail-section">
-                        <div class="section-title">Nguồn Dữ Liệu</div>
-                        <div>
-                            <div class="detail-label">URL Gốc</div>
-                            <a id="detailUrl" href="#" target="_blank" class="source-link">Xem trên nguồn gốc</a>
-                        </div>
+                    <div style="margin-top: 20px; margin-bottom: 20px;">
+                        <a id="detailUrl" href="#" target="_blank" class="btn" style="display: inline-flex; align-items: center; gap: 6px; background: #334155; color: #f1f5f9; border: 1px solid #475569; border-radius: 6px; padding: 8px 16px; text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Xem bản tin
+                        </a>
                     </div>
                 </div>
 
-                <div id="fullTextSection" style="flex: 1; overflow-y: auto; max-height: 70vh; border-left: 1px solid #334155; padding-left: 20px; display: none;">
+                <div id="fullTextSection" style="flex: 1; overflow-y: auto; max-height: 70vh; border-left: 1px solid #334155; padding-left: 20px; padding-right: 15px; display: none;">
                     <div class="detail-section">
-                        <div class="section-title">Nội Dung Chính Của Tin Tức</div>
+                        <div class="section-title">Nội Dung Gốc Của Bản Tin</div>
                         <div class="full-text-section">
                             <div class="full-text" id="detailFullText" style="white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 13px; color: #cbd5e1;"></div>
                         </div>
@@ -951,31 +1004,32 @@
         
         return {
           _record_id: recordId,
-          published_at: r.published_at || 'N/A',
-          collected_at: r.collected_at || 'N/A',
+          published_at: r.published_at || '',
+          collected_at: r.collected_at || '',
           url: r.url || '#',
           text_content: r.text_content || '',
-          MaChungKhoan: r.MaChungKhoan || 'N/A',
-          NhomQuyen: r.NhomQuyen || 'N/A',
-          LoaiQuyen: r.LoaiQuyen || 'N/A',
-          MaISIN: r.MaISIN || 'N/A',
-          MaTrongNuoc: r.MaTrongNuoc || 'N/A',
-          NgayChot: r.NgayChot || 'N/A',
-          NgayGDKHQ: r.NgayGDKHQ || 'N/A',
-          NgayThucHien: r.NgayThucHien || 'N/A',
-          UocTinhNgayThucHien: r.UocTinhNgayThucHien || 'N/A',
-          NgayThanhToan: r.NgayThanhToan || 'N/A',
-          CNQuyenMuaTuNgay: r.CNQuyenMuaTuNgay || 'N/A',
-          CNQuyenMuaDenNgay: r.CNQuyenMuaDenNgay || 'N/A',
-          DKQuyenMuaTuNgay: r.DKQuyenMuaTuNgay || 'N/A',
-          DKQuyenMuaDenNgay: r.DKQuyenMuaDenNgay || 'N/A',
-          DonViHuongQuyen: r.DonViHuongQuyen || 'N/A',
-          GiaTriHuongQuyen: r.GiaTriHuongQuyen || 'N/A',
-          TyLeMenhGia: r.TyLeMenhGia || 'N/A',
-          GiaPhatHanh: r.GiaPhatHanh || 'N/A',
-          NoiDung: r.NoiDung || 'N/A',
-          is_completed: r.is_completed !== undefined ? r.is_completed : 'N/A',
-          is_special: r.is_special !== undefined ? r.is_special : 'N/A',
+          MaChungKhoan: r.MaChungKhoan || '',
+          NhomQuyen: r.NhomQuyen || '',
+          LoaiQuyen: r.LoaiQuyen || '',
+          MaISIN: r.MaISIN || '',
+          MaTrongNuoc: r.MaTrongNuoc || '',
+          NgayChot: r.NgayChot || '',
+          NgayGDKHQ: r.NgayGDKHQ || '',
+          NgayThucHien: r.NgayThucHien || '',
+          UocTinhNgayThucHien: r.UocTinhNgayThucHien || '',
+          NgayThanhToan: r.NgayThanhToan || '',
+          CNQuyenMuaTuNgay: r.CNQuyenMuaTuNgay || '',
+          CNQuyenMuaDenNgay: r.CNQuyenMuaDenNgay || '',
+          DKQuyenMuaTuNgay: r.DKQuyenMuaTuNgay || '',
+          DKQuyenMuaDenNgay: r.DKQuyenMuaDenNgay || '',
+          DonViHuongQuyen: r.DonViHuongQuyen || '',
+          GiaTriHuongQuyen: r.GiaTriHuongQuyen || '',
+          TyLeMenhGia: r.TyLeMenhGia || '',
+          GiaPhatHanh: r.GiaPhatHanh || '',
+          NoiDung: r.NoiDung || '',
+          TieuDe: r.TieuDe || '',
+          is_completed: r.is_completed !== undefined ? r.is_completed : '',
+          is_special: r.is_special !== undefined ? r.is_special : '',
           
           status: r.status || 'pending',
           confirmation_status: r.confirmation_status || 'awaiting_review',
@@ -995,6 +1049,62 @@
         }
       }
 
+      // Helper functions for date operations
+      function parseDateTime(dtStr) {
+        if (!dtStr || dtStr === 'N/A' || dtStr === '--') return null;
+        const parts = dtStr.trim().split(' ');
+        if (!parts[0]) return null;
+        const dParts = parts[0].split('/');
+        if (dParts.length !== 3) return null;
+        const day = parseInt(dParts[0], 10);
+        const month = parseInt(dParts[1], 10) - 1;
+        const year = parseInt(dParts[2], 10);
+        let hour = 0, min = 0, sec = 0;
+        if (parts[1]) {
+          const tParts = parts[1].split(':');
+          hour = parseInt(tParts[0] || 0, 10);
+          min = parseInt(tParts[1] || 0, 10);
+          sec = parseInt(tParts[2] || 0, 10);
+        }
+        return new Date(year, month, day, hour, min, sec);
+      }
+
+      function formatDateTime(date) {
+        if (!date) return '--';
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        const hh = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        const ss = String(date.getSeconds()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+      }
+
+      function getDatePart(dateTimeStr) {
+        if (!dateTimeStr || dateTimeStr === 'N/A' || dateTimeStr === '--') return '';
+        return dateTimeStr.trim().split(' ')[0];
+      }
+
+      // Reusable HTML template for a record row
+      function getRecordRowHTML(record) {
+        const displayStatus = record.status === 'pending' ? 'Chờ Xử Lý' : (record.status === 'confirmed' ? 'Đã Xác Nhận' : 'Bị Từ Chối');
+        
+        const published_at = record.published_at === 'N/A' ? '' : (record.published_at || '');
+        const NgayChot = record.NgayChot === 'N/A' ? '' : (record.NgayChot || '');
+        const MaChungKhoan = record.MaChungKhoan === 'N/A' ? '' : (record.MaChungKhoan || '');
+        const TieuDe = record.TieuDe === 'N/A' ? '' : (record.TieuDe || '');
+        const NhomQuyen = record.NhomQuyen === 'N/A' ? '' : (record.NhomQuyen || '');
+        
+        return `
+          <td>${published_at}</td>
+          <td>${NgayChot}</td>
+          <td>${MaChungKhoan}</td>
+          <td style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${TieuDe}">${TieuDe}</td>
+          <td>${NhomQuyen}</td>
+          <td><span class="status-badge status-${record.status || 'pending'}">${displayStatus}</span></td>
+        `;
+      }
+
       // Initialize table
       function initializeTable(records) {
         const tableBody = document.getElementById('tableBody');
@@ -1003,7 +1113,7 @@
         tableBody.innerHTML = '';
 
         if (!records || records.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">Không có dữ liệu</td></tr>';
+          tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">Không có dữ liệu</td></tr>';
           return;
         }
 
@@ -1011,15 +1121,7 @@
           const row = document.createElement('tr');
           row.style.cursor = 'pointer';
           row.onclick = () => showModal(record._record_id);
-          row.innerHTML = `
-            <td>${record.MaChungKhoan || 'N/A'}</td>
-            <td>${record.NhomQuyen || 'N/A'}</td>
-            <td>${record.published_at || 'N/A'}</td>
-            <td>${record.NgayChot || 'N/A'}</td>
-            <td>${record.NgayThanhToan || 'N/A'}</td>
-            <td>${record.GiaTriHuongQuyen || 'N/A'}</td>
-            <td><span class="status-badge status-${record.status || 'pending'}">${record.status || 'pending'}</span></td>
-          `;
+          row.innerHTML = getRecordRowHTML(record);
           tableBody.appendChild(row);
         });
 
@@ -1028,6 +1130,7 @@
 
       // Update statistics
       function updateStats(records) {
+        // 1. Overall stats
         const total = records.length;
         const pending = records.filter(r => r.status === 'pending').length;
         const confirmed = records.filter(r => r.status === 'confirmed').length;
@@ -1037,6 +1140,43 @@
         document.getElementById('pendingCount').textContent = pending;
         document.getElementById('confirmedCount').textContent = confirmed;
         document.getElementById('rejectedCount').textContent = rejected;
+
+        // 2. Find max of Ngày thu thập (collected_at)
+        let maxDate = null;
+        let lastUpdateDateStr = '';
+        records.forEach(r => {
+          const dt = parseDateTime(r.collected_at);
+          if (dt) {
+            if (!maxDate || dt > maxDate) {
+              maxDate = dt;
+            }
+          }
+        });
+
+        if (maxDate) {
+          const formatted = formatDateTime(maxDate);
+          document.getElementById('lastUpdate').textContent = `Lần cập nhật cuối: ${formatted}`;
+          lastUpdateDateStr = getDatePart(formatted);
+        } else {
+          document.getElementById('lastUpdate').textContent = 'Lần cập nhật cuối: --';
+        }
+
+        // 3. Stats for last update date
+        const lastDayRecords = records.filter(r => getDatePart(r.published_at) === lastUpdateDateStr);
+        const totalLastDay = lastDayRecords.length;
+        const pendingLastDay = lastDayRecords.filter(r => r.status === 'pending').length;
+        const confirmedLastDay = lastDayRecords.filter(r => r.status === 'confirmed').length;
+        const rejectedLastDay = lastDayRecords.filter(r => r.status === 'rejected').length;
+
+        document.getElementById('totalRecordsLastDay').textContent = totalLastDay;
+        document.getElementById('pendingCountLastDay').textContent = pendingLastDay;
+        document.getElementById('confirmedCountLastDay').textContent = confirmedLastDay;
+        document.getElementById('rejectedCountLastDay').textContent = rejectedLastDay;
+
+        const titleEl = document.getElementById('lastDayStatsTitle');
+        if (titleEl) {
+          titleEl.textContent = `Thống Kê Trong Ngày Cập Nhật Cuối (${lastUpdateDateStr || '--'})`;
+        }
       }
 
       // Utility Functions for UI/UX
@@ -1115,6 +1255,31 @@
         });
       }
 
+      function renderReadOnlyModalField(elementId, value) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        let displayVal = value;
+        if (value === null || value === undefined || value === 'N/A' || value === 'null' || value === '--') {
+          displayVal = '';
+        } else if (value === true || value === 'true') {
+          displayVal = 'Có';
+        } else if (value === false || value === 'false') {
+          displayVal = 'Không';
+        }
+
+        const escapedValForCopy = displayVal.toString().replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+        el.innerHTML = `
+          <div class="detail-value-container">
+            <span id="text-${elementId}">${displayVal}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${escapedValForCopy}', this)" title="Sao chép">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            </button>
+          </div>
+        `;
+      }
+
       function renderModalField(elementId, value, recordId, fieldKey) {
         const el = document.getElementById(elementId);
         if (!el) return;
@@ -1122,12 +1287,16 @@
         const hasBeenEdited = window.EMBEDDED_DATA?.records?.find(r => r._record_id === recordId)?._edited_fields?.[fieldKey];
         const badgeHTML = hasBeenEdited ? `<span class="edited-badge">Đã sửa</span>` : '';
 
-        // Safe replace for copy string escaping
-        const escapedValForCopy = value.toString().replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        let displayVal = value;
+        if (value === null || value === undefined || value === 'N/A' || value === 'null' || value === '--') {
+          displayVal = '';
+        }
+
+        const escapedValForCopy = displayVal.toString().replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
         el.innerHTML = `
           <div class="detail-value-container">
-            <span class="editable-field" id="text-${elementId}" title="Double-click để chỉnh sửa" ondblclick="enableInlineEdit('${elementId}', '${recordId}', '${fieldKey}')">${value} ${badgeHTML}</span>
+            <span class="editable-field" id="text-${elementId}" title="Double-click để chỉnh sửa" ondblclick="enableInlineEdit('${elementId}', '${recordId}', '${fieldKey}')">${displayVal} ${badgeHTML}</span>
             <button class="copy-btn" onclick="copyToClipboard('${escapedValForCopy}', this)" title="Sao chép">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
             </button>
@@ -1155,7 +1324,7 @@
           hasSaved = true;
 
           let newValue = input.value.trim();
-          if (newValue === '') newValue = 'N/A';
+          if (newValue === '') newValue = '';
 
           const records = window.EMBEDDED_DATA?.records || [];
           const record = records.find(r => r._record_id === recordId);
@@ -1174,12 +1343,11 @@
                   if (row.onclick && row.onclick.toString().includes(recordId)) {
                     const cells = row.querySelectorAll('td');
                     if (cells.length > 0) {
-                      if (fieldKey === 'MaChungKhoan') cells[0].textContent = newValue;
-                      if (fieldKey === 'NhomQuyen') cells[1].textContent = newValue;
-                      if (fieldKey === 'published_at') cells[2].textContent = newValue;
-                      if (fieldKey === 'NgayChot') cells[3].textContent = newValue;
-                      if (fieldKey === 'NgayThanhToan') cells[4].textContent = newValue;
-                      if (fieldKey === 'GiaTriHuongQuyen') cells[5].textContent = newValue;
+                      if (fieldKey === 'published_at') cells[0].textContent = newValue;
+                      if (fieldKey === 'NgayChot') cells[1].textContent = newValue;
+                      if (fieldKey === 'MaChungKhoan') cells[2].textContent = newValue;
+                      if (fieldKey === 'TieuDe') cells[3].textContent = newValue;
+                      if (fieldKey === 'NhomQuyen') cells[4].textContent = newValue;
                     }
                   }
                 });
@@ -1274,33 +1442,33 @@
         }
 
         // Update modal with record data (using the dynamic render helper)
-        renderModalField('detailMaChungKhoan', record.MaChungKhoan || 'N/A', recordId, 'MaChungKhoan');
-        renderModalField('detailNhomQuyen', record.NhomQuyen || 'N/A', recordId, 'NhomQuyen');
-        renderModalField('detailLoaiQuyen', record.LoaiQuyen || 'N/A', recordId, 'LoaiQuyen');
-        renderModalField('detailMaISIN', record.MaISIN || 'N/A', recordId, 'MaISIN');
-        renderModalField('detailMaTrongNuoc', record.MaTrongNuoc || 'N/A', recordId, 'MaTrongNuoc');
+        renderModalField('detailMaChungKhoan', record.MaChungKhoan, recordId, 'MaChungKhoan');
+        renderModalField('detailNhomQuyen', record.NhomQuyen, recordId, 'NhomQuyen');
+        renderModalField('detailLoaiQuyen', record.LoaiQuyen, recordId, 'LoaiQuyen');
+        renderModalField('detailMaISIN', record.MaISIN, recordId, 'MaISIN');
+        renderModalField('detailMaTrongNuoc', record.MaTrongNuoc, recordId, 'MaTrongNuoc');
         
-        renderModalField('detailPublishedAt', record.published_at || 'N/A', recordId, 'published_at');
-        renderModalField('detailCollectedAt', record.collected_at || 'N/A', recordId, 'collected_at');
-        renderModalField('detailNgayChot', record.NgayChot || 'N/A', recordId, 'NgayChot');
-        renderModalField('detailNgayGDKHQ', record.NgayGDKHQ || 'N/A', recordId, 'NgayGDKHQ');
-        renderModalField('detailNgayThucHien', record.NgayThucHien || 'N/A', recordId, 'NgayThucHien');
-        renderModalField('detailUocTinhNgayThucHien', record.UocTinhNgayThucHien || 'N/A', recordId, 'UocTinhNgayThucHien');
-        renderModalField('detailNgayThanhToan', record.NgayThanhToan || 'N/A', recordId, 'NgayThanhToan');
+        renderReadOnlyModalField('detailPublishedAt', record.published_at);
+        renderReadOnlyModalField('detailCollectedAt', record.collected_at);
+        renderModalField('detailNgayChot', record.NgayChot, recordId, 'NgayChot');
+        renderModalField('detailNgayGDKHQ', record.NgayGDKHQ, recordId, 'NgayGDKHQ');
+        renderModalField('detailNgayThucHien', record.NgayThucHien, recordId, 'NgayThucHien');
+        renderModalField('detailUocTinhNgayThucHien', record.UocTinhNgayThucHien, recordId, 'UocTinhNgayThucHien');
+        renderModalField('detailNgayThanhToan', record.NgayThanhToan, recordId, 'NgayThanhToan');
         
-        renderModalField('detailCNQuyenMuaTuNgay', record.CNQuyenMuaTuNgay || 'N/A', recordId, 'CNQuyenMuaTuNgay');
-        renderModalField('detailCNQuyenMuaDenNgay', record.CNQuyenMuaDenNgay || 'N/A', recordId, 'CNQuyenMuaDenNgay');
-        renderModalField('detailDKQuyenMuaTuNgay', record.DKQuyenMuaTuNgay || 'N/A', recordId, 'DKQuyenMuaTuNgay');
-        renderModalField('detailDKQuyenMuaDenNgay', record.DKQuyenMuaDenNgay || 'N/A', recordId, 'DKQuyenMuaDenNgay');
-        renderModalField('detailGiaPhatHanh', record.GiaPhatHanh || 'N/A', recordId, 'GiaPhatHanh');
+        renderModalField('detailCNQuyenMuaTuNgay', record.CNQuyenMuaTuNgay, recordId, 'CNQuyenMuaTuNgay');
+        renderModalField('detailCNQuyenMuaDenNgay', record.CNQuyenMuaDenNgay, recordId, 'CNQuyenMuaDenNgay');
+        renderModalField('detailDKQuyenMuaTuNgay', record.DKQuyenMuaTuNgay, recordId, 'DKQuyenMuaTuNgay');
+        renderModalField('detailDKQuyenMuaDenNgay', record.DKQuyenMuaDenNgay, recordId, 'DKQuyenMuaDenNgay');
+        renderModalField('detailGiaPhatHanh', record.GiaPhatHanh, recordId, 'GiaPhatHanh');
         
-        renderModalField('detailDonViHuongQuyen', record.DonViHuongQuyen || 'N/A', recordId, 'DonViHuongQuyen');
-        renderModalField('detailGiaTriHuongQuyen', record.GiaTriHuongQuyen || 'N/A', recordId, 'GiaTriHuongQuyen');
-        renderModalField('detailTyLeMenhGia', record.TyLeMenhGia || 'N/A', recordId, 'TyLeMenhGia');
+        renderModalField('detailDonViHuongQuyen', record.DonViHuongQuyen, recordId, 'DonViHuongQuyen');
+        renderModalField('detailGiaTriHuongQuyen', record.GiaTriHuongQuyen, recordId, 'GiaTriHuongQuyen');
+        renderModalField('detailTyLeMenhGia', record.TyLeMenhGia, recordId, 'TyLeMenhGia');
         
-        renderModalField('detailIsSpecial', record.is_special !== undefined ? record.is_special : 'N/A', recordId, 'is_special');
-        renderModalField('detailIsCompleted', record.is_completed !== undefined ? record.is_completed : 'N/A', recordId, 'is_completed');
-        renderModalField('detailNoiDung', record.NoiDung || 'N/A', recordId, 'NoiDung');
+        renderReadOnlyModalField('detailIsSpecial', record.is_special);
+        renderReadOnlyModalField('detailIsCompleted', record.is_completed);
+        renderModalField('detailNoiDung', record.NoiDung, recordId, 'NoiDung');
 
         // Full text content with smart highlighting
         const fullTextSection = document.getElementById('fullTextSection');
@@ -1312,7 +1480,6 @@
         }
 
         document.getElementById('detailUrl').href = record.url || '#';
-        document.getElementById('detailUrl').textContent = 'Xem trên nguồn gốc';
 
         // Show modal
         const modal = document.getElementById('detailModal');
@@ -1346,11 +1513,14 @@
         initializeTable(window.EMBEDDED_DATA.records);
       }
 
-      // Filter table by search text and date range
+      // Filter table by search text, date range, and status
+      let currentStatus = 'all';
+
       function filterTable() {
         const searchInput = document.getElementById('searchInput')?.value.toLowerCase() || '';
         const startDate = document.getElementById('startDate')?.value;
         const endDate = document.getElementById('endDate')?.value;
+        const dateFilterType = document.getElementById('dateFilterType')?.value || 'published';
         const tableBody = document.getElementById('tableBody');
         
         if (!tableBody) return;
@@ -1358,37 +1528,50 @@
         const records = window.EMBEDDED_DATA?.records || [];
         let filtered = records;
 
-        // Filter by search text
+        // 1. Filter by status
+        if (currentStatus !== 'all') {
+          filtered = filtered.filter(r => r.status === currentStatus);
+        }
+
+        // 2. Filter by search text
         if (searchInput) {
           filtered = filtered.filter(r => 
             (r.MaChungKhoan && r.MaChungKhoan.toLowerCase().includes(searchInput)) ||
             (r.NhomQuyen && r.NhomQuyen.toLowerCase().includes(searchInput)) ||
             (r.LoaiQuyen && r.LoaiQuyen.toLowerCase().includes(searchInput)) ||
+            (r.TieuDe && r.TieuDe.toLowerCase().includes(searchInput)) ||
             (r.NoiDung && r.NoiDung.toLowerCase().includes(searchInput))
           );
         }
 
-        // Filter by date range
+        // 3. Filter by date range
         if (startDate || endDate) {
           filtered = filtered.filter(r => {
-            const recordDate = r.published_at || r.published_date || r.date; // format: DD/MM/YYYY HH:MM:SS or DD/MM/YYYY
-            if (!recordDate) return false;
+            const recordDate = dateFilterType === 'published' ? r.published_at : r.NgayChot;
+            if (!recordDate || recordDate === 'N/A' || recordDate === '--') return false;
             
             const datePart = recordDate.split(' ')[0];
-            const [day, month, year] = datePart.split('/');
+            const dateParts = datePart.split('/');
+            if (dateParts.length !== 3) return false;
+            const [day, month, year] = dateParts.map(x => parseInt(x, 10));
             const dateObj = new Date(year, month - 1, day);
             
-            const start = startDate ? new Date(startDate) : new Date('1900-01-01');
-            const end = endDate ? new Date(endDate) : new Date('2099-12-31');
+            const start = startDate ? new Date(startDate) : null;
+            if (start) start.setHours(0, 0, 0, 0);
             
-            return dateObj >= start && dateObj <= end;
+            const end = endDate ? new Date(endDate) : null;
+            if (end) end.setHours(23, 59, 59, 999);
+            
+            if (start && dateObj < start) return false;
+            if (end && dateObj > end) return false;
+            return true;
           });
         }
 
         // Render filtered results
         tableBody.innerHTML = '';
         if (filtered.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">Không tìm thấy kết quả</td></tr>';
+          tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">Không tìm thấy kết quả</td></tr>';
           return;
         }
 
@@ -1396,21 +1579,12 @@
           const row = document.createElement('tr');
           row.style.cursor = 'pointer';
           row.onclick = () => showModal(record._record_id);
-          row.innerHTML = `
-            <td>${record.MaChungKhoan || 'N/A'}</td>
-            <td>${record.NhomQuyen || 'N/A'}</td>
-            <td>${record.published_at || 'N/A'}</td>
-            <td>${record.NgayChot || 'N/A'}</td>
-            <td>${record.NgayThanhToan || 'N/A'}</td>
-            <td>${record.GiaTriHuongQuyen || 'N/A'}</td>
-            <td><span class="status-badge status-${record.status || 'pending'}">${record.status || 'pending'}</span></td>
-          `;
+          row.innerHTML = getRecordRowHTML(record);
           tableBody.appendChild(row);
         });
       }
 
       // Filter by status
-      let currentStatus = 'all';
       function filterByStatus(status, btnEl) {
         currentStatus = status;
         
@@ -1432,38 +1606,8 @@
           });
         }
 
-        // Filter table
-        const tableBody = document.getElementById('tableBody');
-        if (!tableBody) return;
-
-        const records = window.EMBEDDED_DATA?.records || [];
-        let filtered = records;
-
-        if (status !== 'all') {
-          filtered = filtered.filter(r => r.status === status);
-        }
-
-        tableBody.innerHTML = '';
-        if (filtered.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">Không có records</td></tr>';
-          return;
-        }
-
-        filtered.forEach(record => {
-          const row = document.createElement('tr');
-          row.style.cursor = 'pointer';
-          row.onclick = () => showModal(record._record_id);
-          row.innerHTML = `
-            <td>${record.MaChungKhoan || 'N/A'}</td>
-            <td>${record.NhomQuyen || 'N/A'}</td>
-            <td>${record.published_at || 'N/A'}</td>
-            <td>${record.NgayChot || 'N/A'}</td>
-            <td>${record.NgayThanhToan || 'N/A'}</td>
-            <td>${record.GiaTriHuongQuyen || 'N/A'}</td>
-            <td><span class="status-badge status-${record.status || 'pending'}">${record.status || 'pending'}</span></td>
-          `;
-          tableBody.appendChild(row);
-        });
+        // Apply unified filtering
+        filterTable();
       }
 
       // Clear date filter
