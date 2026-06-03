@@ -2,8 +2,8 @@ name: VSD Automation - Deploy to GitHub Pages
 
 on:
   schedule:
-    - cron: '0 4,9 * * *' # Runs at 11:00 AM and 4:00 PM VN time (4:00 AM and 9:00 AM UTC)
-  workflow_dispatch:      # Manual trigger only for testing
+    - cron: "0 4,9 * * *" # Runs at 11:00 AM and 4:00 PM VN time (4:00 AM and 9:00 AM UTC)
+  workflow_dispatch: # Manual trigger only for testing
 
 permissions:
   contents: write
@@ -21,7 +21,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
