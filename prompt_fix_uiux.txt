@@ -5,10 +5,10 @@ Về phần giao diện web, hãy sửa đổi theo những yêu cầu sau:
 - Tiêu đề chính: sửa "VPS Automation VHCK" thành "VSD Information Portal"
 - Tiêu đề phụ: sửa "Hệ thống Quản Lý Quyền Chứng Khoán" thành "Cổng Thông Tin Quyền Chứng Khoán"
 - Mục "Lần cập nhật cuối" đang chưa có giá trị, hãy lấy max của trường Ngày thu thập theo định dạng ngày tháng năm có giờ chi tiết
-- Thêm các thông tin Tổng Bản Ghi, Đã Xác Nhận, Bị Từ Chối, và Chờ Xử Lý dành riêng cho các tin được đăng tải trong ngày cập nhật cuối
+- Hiển thị thêm các thông tin Tổng Bản Ghi, Đã Xác Nhận, Bị Từ Chối, và Chờ Xử Lý dành riêng cho các tin được đăng tải trong ngày cập nhật cuối
 - Bộ lọc ngày cần có 2 loại, lọc theo ngày chốt và lọc theo ngày đăng tin (chỉ ngày tháng năm, không có giờ)
 - Các nút lọc trạng thái Tất Cả, Chờ Xử Lý, Đã Xác Nhận, Bị Từ Chối cần đổi màu khi được nhấn vào để phân biệt với các nút "Áp dụng lọc" và "Xoá lọc ngày"
-- Với phần thông tin chung cho các mã thì hiển thị những trường sau theo thứ tự từ trái sang phải: Ngày đăng tin, Mã CK, Nhóm quyền, Tiêu đề tin, Trạng thái.
+- Với phần thông tin chung cho các mã thì hiển thị những trường sau theo thứ tự từ trái sang phải: Ngày đăng tin, Mã CK, Nhóm quyền, Tiêu đề tin (lấy theo trường TieuDe trong dữ liệu đích), Ngày chốt, Trạng thái.
 
 2. Trong nội dung chi tiết từng mã
 - Chuyển các thông tin sau về dạng hiển thị mặc định (không sửa đổi) và đưa lên trên đầu vì chúng không phải là các thông tin nghiệp vụ: ngày đăng tin, ngày thu thập, và 2 trường trong mục Trạng thái hệ thống (cũng không cần phân mục riêng cho 2 trường trạng thái này)
