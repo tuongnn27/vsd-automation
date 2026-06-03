@@ -1,0 +1,22 @@
+Về phần giao diện web, hãy sửa đổi theo những yêu cầu sau:
+
+1. Trên màn hình chính
+- Bỏ các nút "CHỜ XỬ LÝ" và "Tải Dữ Liệu"
+- Tiêu đề chính: sửa "VPS Automation VHCK" thành "VSD Information Portal"
+- Tiêu đề phụ: sửa "Hệ thống Quản Lý Quyền Chứng Khoán" thành "Cổng Thông Tin Quyền Chứng Khoán"
+- Mục "Lần cập nhật cuối" đang chưa có giá trị, hãy lấy max của trường Ngày thu thập theo định dạng ngày tháng năm có giờ chi tiết
+- Thêm các thông tin Tổng Bản Ghi, Đã Xác Nhận, Bị Từ Chối, và Chờ Xử Lý dành riêng cho các tin được đăng tải trong ngày cập nhật cuối
+- Bộ lọc ngày cần có 2 loại, lọc theo ngày chốt và lọc theo ngày đăng tin (chỉ ngày tháng năm, không có giờ)
+- Các nút lọc trạng thái Tất Cả, Chờ Xử Lý, Đã Xác Nhận, Bị Từ Chối cần đổi màu khi được nhấn vào để phân biệt với các nút "Áp dụng lọc" và "Xoá lọc ngày"
+- Với phần thông tin chung cho các mã thì hiển thị những trường sau theo thứ tự từ trái sang phải: Ngày đăng tin, Mã CK, Nhóm quyền, Tiêu đề tin, Trạng thái.
+
+2. Trong nội dung chi tiết từng mã
+- Chuyển các thông tin sau về dạng hiển thị mặc định (không sửa đổi) và đưa lên trên đầu vì chúng không phải là các thông tin nghiệp vụ: ngày đăng tin, ngày thu thập, và 2 trường trong mục Trạng thái hệ thống (cũng không cần phân mục riêng cho 2 trường trạng thái này)
+- Đổi tên 2 trường "bản tin đặc biệt" và "trạng thái hoàn thành" lần lượt thành "đánh dấu đặc biệt" và "đánh dấu đủ thông tin"
+- "Chi tiết mã CK" đổi thành "Chi tiết thông tin quyền"
+- "Nội Dung Chính Của Tin Tức" đổi thành "Nội Dung Gốc Của Bản Tin"
+- Các trường null thì để trống chứ không để "N/A"
+- "Chi Tiết Quyền Mua (Nước Ngoài & Đăng Ký)" đổi thành "Chi Tiết Quyền Mua (Chuyển Nhượng & Đăng Ký)"
+- Tiêu đề "Nội Dung Trích Xuất" ở cột bên trái đổi thành "Nội dung"; tiêu đề này ngang cấp với các mục Giá Trị Hưởng Quyền & Tỷ Lệ, Lịch Trình Thực Hiện, nên cần được format lại hiển thị
+- Bỏ tiêu đề "Nguồn Dữ Liệu" và "URL Gốc", chỉ cần nút dẫn tới link gốc thôi, trong đó, nút dẫn tới bản tin gốc sửa tên nút từ "Xem trên nguồn gốc" thành "Xem bản tin"
+- Cột nội dung gốc của tin (phần nửa bên phải của màn hình chi tiết) đang có 2 thanh cuộn, hãy tối ưu lại để chỉ còn 1 thanh.

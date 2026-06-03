@@ -1,0 +1,55 @@
+* Sửa lỗi duplicate 2 dòng cho 1 bản tin
+
+* Sửa lỗi kỹ thuật do web VSD chặn duyệt nhiều tin
+
+* Cải thiện độ chính xác và đầy đủ của trường [ThiTruong], [SanGD], [NoiQuanLy], [NgayChot], [NgayThucHien], [NgayThanhToan] nếu có đề cập trong nội dung tin, chuẩn hoá về 1 format khi nội dung gốc diễn đạt dưới nhiều dạng khác nhau
+
+* Bắt được thêm/ tăng độ chính xác cho các loại quyền:
+  * Mua lại toàn bộ trái phiếu -> Cổ tức bằng tiền
+  * Thực hiện quyền đề cử/ Lấy ý kiến -> Quyền biểu quyết
+  * Nhận cổ phiếu...để tăng vốn -> Cổ phiếu thưởng
+  * Đăng ký chứng chỉ/ chứng khoán/... -> Đăng ký lưu ký
+  * Thực hiện chứng quyền do đáo hạn/ ... -> Thực hiện chứng quyền
+
+* Phân loại Tin huỷ qua trường [NoiDung], gồm các loại:
+  * Hủy đăng ký chứng khoán
+  * Hủy đăng ký chứng quyền
+  * Hủy đăng ký trái phiếu
+  * Hủy đợt chốt danh sách thực hiện chứng quyền
+  * Hủy danh sách người sở hữu chứng khoán
+  * Hủy thông báo ngày đăng ký cuối cùng
+
+
+Tiếp tục xử lý:
+
+* Các trường hợp nhiều quyền trong 1 tin
+* 3 trường hợp đặc biệt: ...
+* Các trường hợp vừa được P.VHCK bổ sung mô tả trong email trước
+
+
+
+-----------------------------------------------------
+
+
+1. [LoaiQuyen]==null
+-  https://www.vsd.vn/vi/ad/195198 - CSSB2508: Hủy đăng ký chứng quyền
+-  https://www.vsd.vn/vi/ad/195536 - CACB2510: Thực hiện chứng quyền do đáo hạn
+-  https://www.vsd.vn/vi/ad/195476 - ABB12510: Mua lại trước hạn trái phiếu doanh nghiệp theo đề nghị của tổ chức phát hành
+-  https://www.vsd.vn/vi/ad/195474 - LEC: Tham dự Đại hội cổ đông thường niên năm 2026
+-  https://www.vsd.vn/vi/ad/195639 - NAB: Thực hiện quyền đề cử/ứng cử nhân sự bổ sung Ban kiểm soát Ngân hàng TMCP Nam Á nhiệm kỳ IX (2026-2031)
+-  https://www.vsd.vn/vi/ad/195343 - FTS: Trả cổ tức năm 2025 bằng tiền; Nhận cổ phiếu phát hành để tăng vốn cổ phần từ nguồn vốn chủ sở hữu
+-  https://www.vsd.vn/vi/ad/195243 - CII425021: Lấy ý kiến người sở hữu trái phiếu
+-  https://www.vsd.vn/vi/ad/195212 - LOC32601: Đăng ký, lưu ký trái phiếu
+-  https://www.vsd.vn/vi/ad/195445 - NAG: Điều chỉnh thời gian đăng ký mua và nộp tiền mua cổ phiếu chào bán cho cổ đông hiện hữu
+-  https://www.vsd.vn/vi/ad/195389 - MTD12501: Thay đổi Giấy chứng nhận đăng ký chứng khoán do thay đổi điều kiện, điều khoản của trái phiếu
+-  https://www.vsd.vn/vi/ad/195181 - GDH: Ghi nhận dữ liệu tại hệ thống đăng ký, lưu ký chứng khoán
+
+
+## Special Cases:
+
+1 tin 2 quyền: 		vsd.vn/vi/ad/155936
+Tỷ lệ nguyên: 		vsd.vn/vi/ad/185309
+1 tin n quyền: 		vsd.vn/vi/ad/190537
+Đổi ngày DKCC:		vsd.vn/vi/ad/189650
+Thêm mã CP nhận quyền:	vsd.vn/vi/ad/193904
+Hoán đổi CP nhận quyền:	vsd.vn/vi/ad/193195
