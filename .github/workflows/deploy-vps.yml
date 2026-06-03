@@ -1,4 +1,4 @@
-name: VPS Automation - Deploy to GitHub Pages
+name: VSD Automation - Deploy to GitHub Pages
 
 on:
   schedule:
