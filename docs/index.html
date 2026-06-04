@@ -1666,8 +1666,6 @@
         const csvContent = [];
         // Add UTF-8 BOM for Excel compatibility
         csvContent.push('\uFEFF');
-        // Add Excel separator directive so that it opens correctly on all OS / regional settings
-        csvContent.push('sep=,\r\n');
         
         // Add headers row
         csvContent.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\r\n');
