@@ -687,8 +687,7 @@
                     <p style="color: #94a3b8; margin-top: 5px;">Cổng Thông Tin Quyền Chứng Khoán</p>
                 </div>
                 <div class="header-info" style="display: flex; gap: 10px; align-items: center;">
-                    <a href="./data/vsd_records.xlsx" class="btn btn-excel" download>📊 Tải Excel Gốc</a>
-                    <button class="btn btn-excel-current" onclick="exportToExcel()">📥 Xuất Excel Hiện Tại</button>
+                    <button class="btn btn-excel" onclick="exportToExcel()">📥 Xuất Excel Hiện Tại</button>
                 </div>
             </div>
 
@@ -773,12 +772,12 @@
             <table id="recordsTable">
                 <thead>
                     <tr>
-                        <th>Ngày Đăng Tin</th>
-                        <th>Ngày Chốt</th>
-                        <th>Mã CK</th>
+                        <th style="width: 160px;">Ngày Đăng Tin</th>
+                        <th style="width: 120px;">Ngày Chốt</th>
+                        <th style="width: 100px;">Mã CK</th>
                         <th>Tiêu Đề Tin</th>
-                        <th>Nhóm Quyền</th>
-                        <th>Trạng Thái</th>
+                        <th style="width: 150px;">Nhóm Quyền</th>
+                        <th style="width: 140px;">Trạng Thái</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -1100,7 +1099,7 @@
           <td>${NgayChot}</td>
           <td>${MaChungKhoan}</td>
           <td style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${TieuDe}">${TieuDe}</td>
-          <td>${NhomQuyen}</td>
+          <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${NhomQuyen}">${NhomQuyen}</td>
           <td><span class="status-badge status-${record.status || 'pending'}">${displayStatus}</span></td>
         `;
       }
@@ -1516,14 +1515,11 @@
       // Filter table by search text, date range, and status
       let currentStatus = 'all';
 
-      function filterTable() {
+      function getFilteredRecords() {
         const searchInput = document.getElementById('searchInput')?.value.toLowerCase() || '';
         const startDate = document.getElementById('startDate')?.value;
         const endDate = document.getElementById('endDate')?.value;
         const dateFilterType = document.getElementById('dateFilterType')?.value || 'published';
-        const tableBody = document.getElementById('tableBody');
-        
-        if (!tableBody) return;
 
         const records = window.EMBEDDED_DATA?.records || [];
         let filtered = records;
@@ -1567,6 +1563,15 @@
             return true;
           });
         }
+
+        return filtered;
+      }
+
+      function filterTable() {
+        const tableBody = document.getElementById('tableBody');
+        if (!tableBody) return;
+
+        const filtered = getFilteredRecords();
 
         // Render filtered results
         tableBody.innerHTML = '';
@@ -1618,7 +1623,7 @@
       }
 
       function exportToExcel() {
-        const records = window.EMBEDDED_DATA?.records || [];
+        const records = getFilteredRecords();
         if (records.length === 0) {
           alert('Không có dữ liệu để xuất');
           return;
@@ -1652,43 +1657,51 @@
           'Nội Dung Trích Xuất'
         ];
 
+        // Safe field formatting helper to guarantee data quality
+        function cleanField(val) {
+          if (val === null || val === undefined) return '';
+          return val.toString();
+        }
+
         const csvContent = [];
         // Add UTF-8 BOM for Excel compatibility
         csvContent.push('\uFEFF');
+        // Add Excel separator directive so that it opens correctly on all OS / regional settings
+        csvContent.push('sep=,\r\n');
         
         // Add headers row
-        csvContent.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n');
+        csvContent.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\r\n');
 
         // Add records rows
         records.forEach(r => {
           const row = [
-            r.MaChungKhoan || '',
-            r.NhomQuyen || '',
-            r.LoaiQuyen || '',
-            r.MaISIN || '',
-            r.MaTrongNuoc || '',
-            r.published_at || '',
-            r.collected_at || '',
-            r.NgayChot || '',
-            r.NgayGDKHQ || '',
-            r.NgayThucHien || '',
-            r.UocTinhNgayThucHien || '',
-            r.NgayThanhToan || '',
-            r.CNQuyenMuaTuNgay || '',
-            r.CNQuyenMuaDenNgay || '',
-            r.DKQuyenMuaTuNgay || '',
-            r.DKQuyenMuaDenNgay || '',
-            r.GiaPhatHanh || '',
-            r.DonViHuongQuyen || '',
-            r.GiaTriHuongQuyen || '',
-            r.TyLeMenhGia || '',
-            r.is_special || '',
-            r.is_completed || '',
-            r.url || '',
-            (r.NoiDung || '').replace(/\r?\n/g, ' ')
+            cleanField(r.MaChungKhoan),
+            cleanField(r.NhomQuyen),
+            cleanField(r.LoaiQuyen),
+            cleanField(r.MaISIN),
+            cleanField(r.MaTrongNuoc),
+            cleanField(r.published_at),
+            cleanField(r.collected_at),
+            cleanField(r.NgayChot),
+            cleanField(r.NgayGDKHQ),
+            cleanField(r.NgayThucHien),
+            cleanField(r.UocTinhNgayThucHien),
+            cleanField(r.NgayThanhToan),
+            cleanField(r.CNQuyenMuaTuNgay),
+            cleanField(r.CNQuyenMuaDenNgay),
+            cleanField(r.DKQuyenMuaTuNgay),
+            cleanField(r.DKQuyenMuaDenNgay),
+            cleanField(r.GiaPhatHanh),
+            cleanField(r.DonViHuongQuyen),
+            cleanField(r.GiaTriHuongQuyen),
+            cleanField(r.TyLeMenhGia),
+            r.is_special === 1 || r.is_special === '1' ? 'Có' : 'Không',
+            r.is_completed === 1 || r.is_completed === '1' ? 'Có' : 'Không',
+            cleanField(r.url),
+            cleanField(r.NoiDung).replace(/\r?\n/g, ' ')
           ];
           
-          csvContent.push(row.map(val => `"${val.toString().replace(/"/g, '""')}"`).join(',') + '\n');
+          csvContent.push(row.map(val => `"${val.replace(/"/g, '""')}"`).join(',') + '\r\n');
         });
 
         // Create download link
