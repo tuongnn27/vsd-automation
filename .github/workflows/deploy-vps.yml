@@ -1,8 +1,11 @@
 name: VSD Automation - Deploy to GitHub Pages
 
 on:
+  push:
+    branches:
+      - main
   schedule:
-    - cron: "0 4,9 * * 1-5" # Runs at 11:00 AM and 4:00 PM VN time (4:00 AM and 9:00 AM UTC), Monday to Friday
+    - cron: "0 1,4,9 * * 1-5" # Runs at 8:00 AM, 11:00 AM and 4:00 PM VN time (1:00 AM, 4:00 AM and 9:00 AM UTC), Monday to Friday
   workflow_dispatch: # Manual trigger only for testing
 
 permissions:
