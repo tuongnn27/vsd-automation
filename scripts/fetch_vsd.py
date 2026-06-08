@@ -1955,6 +1955,10 @@ class VSDFetcher:
                     for _, row in df_old.iterrows():
                         old_record = row.to_dict()
                         
+                        # Reconstruct title fallback like main() does to ensure stable ID hashing
+                        if 'title' not in old_record or not old_record.get('title'):
+                            old_record['title'] = old_record.get('NoiDung') or f"{old_record.get('MaChungKhoan')}: Tin chứng khoán"
+                        
                         # Generate ID for old record
                         old_rid = old_record.get('_record_id') or self.generate_record_id(old_record)
                         
@@ -2001,7 +2005,7 @@ class VSDFetcher:
             # Create DataFrame từ final records
             df = pd.DataFrame(final_records)
 
-            # Đảm bảo chỉ lấy 25 cột chuẩn theo đúng thứ tự trong rules_2finalize.md
+            # Đảm bảo chỉ lấy các cột chuẩn theo đúng thứ tự trong rules_2finalize.md + cột ID và title để theo dõi chính xác
             STANDARD_COLUMNS = [
                 'published_at', 'collected_at', 'url', 'text_content', 'MaChungKhoan',
                 'TieuDe',
@@ -2009,7 +2013,8 @@ class VSDFetcher:
                 'NgayGDKHQ', 'NgayThucHien', 'UocTinhNgayThucHien', 'NgayThanhToan',
                 'CNQuyenMuaTuNgay', 'CNQuyenMuaDenNgay', 'DKQuyenMuaTuNgay', 'DKQuyenMuaDenNgay',
                 'DonViHuongQuyen', 'GiaTriHuongQuyen', 'TyLeMenhGia', 'GiaPhatHanh',
-                'NoiDung', 'is_completed', 'is_special'
+                'NoiDung', 'is_completed', 'is_special',
+                '_record_id', 'title'
             ]
 
             # Điền các cột còn thiếu là None và chỉ giữ lại đúng 25 cột
