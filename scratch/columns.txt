@@ -1,8 +1,0 @@
-STANDARD_COLUMNS = [
-                'published_at', 'collected_at', 'url', 'text_content', 'MaChungKhoan',
-                'NhomQuyen', 'LoaiQuyen', 'MaISIN', 'MaTrongNuoc', 'NgayChot',
-                'NgayGDKHQ', 'NgayThucHien', 'UocTinhNgayThucHien', 'NgayThanhToan',
-                'CNQuyenMuaTuNgay', 'CNQuyenMuaDenNgay', 'DKQuyenMuaTuNgay', 'DKQuyenMuaDenNgay',
-                'DonViHuongQuyen', 'GiaTriHuongQuyen', 'TyLeMenhGia', 'GiaPhatHanh',
-                'NoiDung', 'is_completed', 'is_special'
-            ]
