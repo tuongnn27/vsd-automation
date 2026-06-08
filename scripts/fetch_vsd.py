@@ -864,31 +864,30 @@ class VSDFetcher:
         Same record will have same ID across runs (safe for daily updates).
 
         Strategy:
-        - If code exists: use code as base ID
-        - If no code: hash title + date to create stable ID
-        - If split: append _split_idx to make it unique
+        - Combine ticker code and a hash suffix of (url + title) to ensure uniqueness
+          across events and split records, even after Excel serialization.
 
         Args:
-            record: The record dict with 'code', 'title', 'date' fields
-            split_idx: If record is split (1, 2, 3...), append to ID
+            record: The record dict with 'code', 'url', 'title', 'MaChungKhoan', etc.
+            split_idx: Optional index, kept for backward compatibility
 
         Returns:
-            Stable record ID string (e.g., "GEX", "GEX_1", "hash123")
+            Stable record ID string (e.g., "DHC_a1b2c3d4")
         """
-        code = record.get('code', '').strip()
+        code = record.get('code', '').strip() or record.get('MaChungKhoan', '').strip()
+        url = record.get('url', '').strip()
+        title = record.get('title', '').strip() or record.get('TieuDe', '').strip() or record.get('NoiDung', '').strip() or ''
+
+        # Build stable content to hash
+        hash_content = f"{url}_{title}"
+        hash_suffix = hashlib.md5(hash_content.encode('utf-8')).hexdigest()[:8]
 
         if code:
-            # Use code as base ID (most reliable)
-            record_id = code
+            record_id = f"{code}_{hash_suffix}"
         else:
-            # Fallback: hash title + published_at to create stable ID
-            title = record.get('title', '')
-            published_at = record.get('published_at') or record.get('published_date') or record.get('date', '')
-            content = f"{title}_{published_at}".encode('utf-8')
-            hash_suffix = hashlib.md5(content).hexdigest()[:8]
             record_id = f"rec_{hash_suffix}"
 
-        # If split record, append index to make unique
+        # If split_idx is passed (kept for compatibility), append it
         if split_idx is not None:
             record_id = f"{record_id}_{split_idx}"
 

@@ -58,6 +58,8 @@
             font-weight: 600;
             font-size: 12px;
             text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-block;
         }
 
         .status-pending {
@@ -495,6 +497,11 @@
             }
         }
 
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .notification {
             position: fixed;
             top: 20px;
@@ -688,6 +695,7 @@
                 </div>
                 <div class="header-info" style="display: flex; gap: 10px; align-items: center;">
                     <button class="btn btn-excel" onclick="exportToExcel()">📥 Xuất Excel Hiện Tại</button>
+                    <button class="btn" onclick="toggleConfigModal()" style="background: #334155; border-color: #475569; color: #f1f5f9; display: inline-flex; align-items: center; gap: 6px;">⚙️ Cấu hình Sync</button>
                 </div>
             </div>
 
@@ -958,6 +966,36 @@
         </div>
     </div>
 
+    <!-- Config Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content" style="width: 500px; height: auto; max-height: 80vh; min-height: unset; flex-direction: column;">
+            <div class="modal-header">
+                <div class="modal-title">Cấu hình Google Sheets Sync</div>
+                <button class="modal-close" onclick="closeConfigModal()">X</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; overflow-y: visible;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #38bdf8; margin-bottom: 5px;">Google Apps Script Web App URL</label>
+                    <input type="text" id="configGasUrl" class="edit-input" style="background: #0f172a; border: 1px solid #334155; padding: 10px;" placeholder="https://script.google.com/macros/s/.../exec">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #38bdf8; margin-bottom: 5px;">Security Token</label>
+                    <input type="password" id="configToken" class="edit-input" style="background: #0f172a; border: 1px solid #334155; padding: 10px;" placeholder="Nhập token bảo mật">
+                    <span style="font-size: 11px; color: #64748b; margin-top: 5px; display: block;">Mã token bảo mật để chống spam request vào Google Sheet của bạn.</span>
+                </div>
+                <div style="margin-bottom: 20px; border-top: 1px solid #334155; padding-top: 15px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #f43f5e; margin-bottom: 5px;">Dọn dẹp bộ nhớ tạm</label>
+                    <span style="font-size: 11px; color: #64748b; margin-bottom: 10px; display: block;">Xóa tất cả các trạng thái phê duyệt và chỉnh sửa đã lưu trên trình duyệt này.</span>
+                    <button class="btn btn-danger" onclick="clearLocalCache()" style="background: #e11d48; border-color: #e11d48; padding: 8px 16px; font-size: 12px; color: white; border-radius: 4px; cursor: pointer; border: none;">Xóa Cache Phê Duyệt</button>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn btn-primary" onclick="saveConfig()" style="background: #0284c7; border-color: #0284c7; padding: 8px 16px;">Lưu Cấu Hình</button>
+                    <button class="btn btn-cancel" onclick="closeConfigModal()" style="padding: 8px 16px;">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     
 
     
@@ -1001,7 +1039,7 @@
         // Ensure a unique, guaranteed _record_id is assigned
         const recordId = r._record_id || r.MaChungKhoan || Math.random().toString(36).substr(2, 9);
         
-        return {
+        const record = {
           _record_id: recordId,
           published_at: r.published_at || '',
           collected_at: r.collected_at || '',
@@ -1035,13 +1073,35 @@
           _is_edited: r._is_edited || false,
           _edited_fields: r._edited_fields || {}
         };
+
+        // Merge with local storage state if exists
+        try {
+          const localStatesStr = localStorage.getItem('vps_vsd_local_states');
+          if (localStatesStr) {
+            const localStates = JSON.parse(localStatesStr);
+            if (localStates[recordId]) {
+              const local = localStates[recordId];
+              Object.keys(local).forEach(key => {
+                if (local[key] !== undefined && local[key] !== null) {
+                  record[key] = local[key];
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Error merging local state for record ' + recordId, e);
+        }
+
+        return record;
       }
 
       // Load embedded data
       function loadDataFromFile() {
         if (window.EMBEDDED_DATA && window.EMBEDDED_DATA.records) {
           window.EMBEDDED_DATA.records = window.EMBEDDED_DATA.records.map(normalizeRecord).filter(Boolean);
+          window.ORIGINAL_RECORDS = JSON.parse(JSON.stringify(window.EMBEDDED_DATA.records));
           initializeTable(window.EMBEDDED_DATA.records);
+          syncStatusesFromGoogleSheet();
           alert('Dữ liệu đã được tải lại từ hệ thống');
         } else {
           alert('Không tìm thấy dữ liệu');
@@ -1334,6 +1394,9 @@
               if (!record._edited_fields) record._edited_fields = {};
               record._edited_fields[fieldKey] = true;
               
+              // Save state locally
+              saveRecordStateToLocal(recordId);
+              
               // Update dashboard table row
               const tableBody = document.getElementById('tableBody');
               if (tableBody) {
@@ -1424,14 +1487,300 @@
         detailFullTextEl.innerHTML = highlightedText;
       }
 
+      // Initialize configuration
+      const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzA-k2d-EKa177jpqPLHlGgqRJU-0pIG56xjsFQekOWa1FIvqQpu1Lt8ZCJ-TGnz5g-/exec'; // Điền link Google Sheets Web App URL cố định tại đây (nếu có)
+      const DEFAULT_SECURITY_TOKEN = 'vps-vsd-sync-token-2026'; // Điền token bảo mật cố định tại đây
+
+      let GAS_URL = localStorage.getItem('vps_vsd_gas_url') || DEFAULT_GAS_URL;
+      let SECURITY_TOKEN = localStorage.getItem('vps_vsd_security_token') || DEFAULT_SECURITY_TOKEN;
+
+      function toggleConfigModal() {
+        const modal = document.getElementById('configModal');
+        if (modal) {
+          document.getElementById('configGasUrl').value = GAS_URL;
+          document.getElementById('configToken').value = SECURITY_TOKEN;
+          modal.classList.add('show');
+        }
+      }
+
+      function closeConfigModal() {
+        const modal = document.getElementById('configModal');
+        if (modal) {
+          modal.classList.remove('show');
+        }
+      }
+
+      function saveConfig() {
+        GAS_URL = document.getElementById('configGasUrl').value.trim();
+        SECURITY_TOKEN = document.getElementById('configToken').value.trim();
+
+        localStorage.setItem('vps_vsd_gas_url', GAS_URL);
+        localStorage.setItem('vps_vsd_security_token', SECURITY_TOKEN);
+
+        showNotification('Đã lưu cấu hình đồng bộ!');
+        closeConfigModal();
+        
+        // Trigger background sync immediately when config changes
+        syncStatusesFromGoogleSheet();
+      }
+
+      function saveRecordStateToLocal(recordId) {
+        try {
+          const records = window.EMBEDDED_DATA?.records || [];
+          const record = records.find(r => r._record_id === recordId);
+          if (!record) return;
+
+          let localStates = {};
+          try {
+            localStates = JSON.parse(localStorage.getItem('vps_vsd_local_states') || '{}');
+          } catch (e) {
+            console.error('Error parsing local states', e);
+          }
+
+          localStates[recordId] = {
+            status: record.status,
+            confirmation_status: record.confirmation_status,
+            _is_edited: record._is_edited || false,
+            _edited_fields: record._edited_fields || {},
+            
+            MaChungKhoan: record.MaChungKhoan,
+            NhomQuyen: record.NhomQuyen,
+            LoaiQuyen: record.LoaiQuyen,
+            MaISIN: record.MaISIN,
+            MaTrongNuoc: record.MaTrongNuoc,
+            NgayChot: record.NgayChot,
+            NgayGDKHQ: record.NgayGDKHQ,
+            NgayThucHien: record.NgayThucHien,
+            UocTinhNgayThucHien: record.UocTinhNgayThucHien,
+            NgayThanhToan: record.NgayThanhToan,
+            CNQuyenMuaTuNgay: record.CNQuyenMuaTuNgay,
+            CNQuyenMuaDenNgay: record.CNQuyenMuaDenNgay,
+            DKQuyenMuaTuNgay: record.DKQuyenMuaTuNgay,
+            DKQuyenMuaDenNgay: record.DKQuyenMuaDenNgay,
+            GiaPhatHanh: record.GiaPhatHanh,
+            DonViHuongQuyen: record.DonViHuongQuyen,
+            GiaTriHuongQuyen: record.GiaTriHuongQuyen,
+            TyLeMenhGia: record.TyLeMenhGia,
+            NoiDung: record.NoiDung,
+            TieuDe: record.TieuDe,
+            is_special: record.is_special,
+            is_completed: record.is_completed,
+            published_at: record.published_at,
+            collected_at: record.collected_at
+          };
+
+          localStorage.setItem('vps_vsd_local_states', JSON.stringify(localStates));
+        } catch (e) {
+          console.error('Failed to save state to localStorage', e);
+        }
+      }
+
+      function clearLocalCache() {
+        if (confirm('Bạn có chắc chắn muốn xóa toàn bộ trạng thái phê duyệt và chỉnh sửa đã lưu trên trình duyệt này không?')) {
+          localStorage.removeItem('vps_vsd_local_states');
+          showNotification('Đã xóa cache thành công! Trang web sẽ tự động tải lại.', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        }
+      }
+
+      async function syncStatusesFromGoogleSheet() {
+        if (!GAS_URL) return;
+        
+        try {
+          const response = await fetch(GAS_URL);
+          const result = await response.json();
+          
+          if (result.status === 'success' && result.data) {
+            const remoteStates = result.data;
+            const records = window.EMBEDDED_DATA?.records || [];
+            let localStates = {};
+            
+            try {
+              localStates = JSON.parse(localStorage.getItem('vps_vsd_local_states') || '{}');
+            } catch (e) {
+              console.error(e);
+            }
+            
+            let updated = false;
+            
+            Object.keys(remoteStates).forEach(recordId => {
+              const remote = remoteStates[recordId];
+              const record = records.find(r => r._record_id === recordId);
+              
+              if (record) {
+                if (record.status !== remote.status) {
+                  record.status = remote.status;
+                  record.confirmation_status = remote.status;
+                  
+                  if (!localStates[recordId]) {
+                    localStates[recordId] = {};
+                  }
+                  localStates[recordId].status = remote.status;
+                  localStates[recordId].confirmation_status = remote.status;
+                  
+                  updated = true;
+                }
+              }
+            });
+            
+            if (updated) {
+              localStorage.setItem('vps_vsd_local_states', JSON.stringify(localStates));
+              filterTable();
+              updateStats(records);
+              showNotification('Đã đồng bộ trạng thái mới nhất từ Google Sheets', 'success');
+            }
+          }
+        } catch (err) {
+          console.warn('Không thể đồng bộ ngầm dữ liệu từ Google Sheets:', err);
+        }
+      }
+
+      async function submitRecordStatus(recordId, status) {
+        if (!GAS_URL) {
+          showNotification('Vui lòng cấu hình Google Apps Script Web App URL trước!', 'error');
+          toggleConfigModal();
+          return;
+        }
+
+        const records = window.EMBEDDED_DATA?.records || [];
+        const record = records.find(r => r._record_id === recordId);
+        if (!record) {
+          showNotification('Không tìm thấy bản ghi!', 'error');
+          return;
+        }
+
+        // Generate change log by comparing with original record
+        const originalRecords = window.ORIGINAL_RECORDS || [];
+        const originalRecord = originalRecords.find(r => r._record_id === recordId) || {};
+        
+        const changedFields = [];
+        const fieldsToCompare = [
+          'MaChungKhoan', 'NhomQuyen', 'LoaiQuyen', 'MaISIN', 'MaTrongNuoc',
+          'NgayChot', 'NgayGDKHQ', 'NgayThucHien', 'UocTinhNgayThucHien', 'NgayThanhToan',
+          'CNQuyenMuaTuNgay', 'CNQuyenMuaDenNgay', 'DKQuyenMuaTuNgay', 'DKQuyenMuaDenNgay',
+          'GiaPhatHanh', 'DonViHuongQuyen', 'GiaTriHuongQuyen', 'TyLeMenhGia', 'NoiDung'
+        ];
+
+        fieldsToCompare.forEach(field => {
+          const originalVal = originalRecord[field] !== undefined ? originalRecord[field] : '';
+          const currentVal = record[field] !== undefined ? record[field] : '';
+          
+          const cleanOrig = (originalVal === null || originalVal === 'N/A' || originalVal === '--') ? '' : originalVal.toString().trim();
+          const cleanCur = (currentVal === null || currentVal === 'N/A' || currentVal === '--') ? '' : currentVal.toString().trim();
+          
+          if (cleanOrig !== cleanCur) {
+            changedFields.push(`[${field}]: ${cleanOrig || 'N/A'} -> ${cleanCur || 'N/A'}`);
+          }
+        });
+
+        const changeLog = changedFields.length > 0 ? changedFields.join('; ') : 'Không có thay đổi';
+
+        // Prepare payload matching the Apps Script expectation
+        const payload = {
+          token: SECURITY_TOKEN,
+          status: status, // "confirmed" or "rejected"
+          recordId: record._record_id,
+          MaChungKhoan: record.MaChungKhoan || '',
+          NhomQuyen: record.NhomQuyen || '',
+          LoaiQuyen: record.LoaiQuyen || '',
+          MaISIN: record.MaISIN || '',
+          MaTrongNuoc: record.MaTrongNuoc || '',
+          published_at: record.published_at || '',
+          collected_at: record.collected_at || '',
+          NgayChot: record.NgayChot || '',
+          NgayGDKHQ: record.NgayGDKHQ || '',
+          NgayThucHien: record.NgayThucHien || '',
+          UocTinhNgayThucHien: record.UocTinhNgayThucHien || '',
+          NgayThanhToan: record.NgayThanhToan || '',
+          CNQuyenMuaTuNgay: record.CNQuyenMuaTuNgay || '',
+          CNQuyenMuaDenNgay: record.CNQuyenMuaDenNgay || '',
+          DKQuyenMuaTuNgay: record.DKQuyenMuaTuNgay || '',
+          DKQuyenMuaDenNgay: record.DKQuyenMuaDenNgay || '',
+          GiaPhatHanh: record.GiaPhatHanh || '',
+          DonViHuongQuyen: record.DonViHuongQuyen || '',
+          GiaTriHuongQuyen: record.GiaTriHuongQuyen || '',
+          TyLeMenhGia: record.TyLeMenhGia || '',
+          is_special: record.is_special !== undefined ? record.is_special : '',
+          is_completed: record.is_completed !== undefined ? record.is_completed : '',
+          NoiDung: record.NoiDung || '',
+          changeLog: changeLog,
+          url: record.url || ''
+        };
+
+        // Disable modal buttons and show loading feedback
+        const confirmBtn = document.querySelector('.btn-confirm');
+        const rejectBtn = document.querySelector('.btn-reject');
+        
+        let originalConfirmText = 'Xác Nhận';
+        let originalRejectText = 'Từ Chối';
+        if (confirmBtn) {
+          originalConfirmText = confirmBtn.innerHTML;
+          confirmBtn.disabled = true;
+          confirmBtn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-radius:50%;border-top-color:transparent;animation:spin 1s linear infinite;margin-right:5px;vertical-align:middle;"></span> Đang gửi...';
+        }
+        if (rejectBtn) {
+          originalRejectText = rejectBtn.innerHTML;
+          rejectBtn.disabled = true;
+          rejectBtn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #fff;border-radius:50%;border-top-color:transparent;animation:spin 1s linear infinite;margin-right:5px;vertical-align:middle;"></span> Đang gửi...';
+        }
+        
+        showNotification('Đang gửi dữ liệu đồng bộ...', 'success');
+
+        try {
+          const response = await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const result = await response.json();
+          if (result.status === 'success') {
+            record.status = status;
+            record.confirmation_status = status;
+            
+            // Save state locally
+            saveRecordStateToLocal(recordId);
+            
+            // Update table row view and statistics
+            filterTable();
+            updateStats(records);
+            
+            showNotification(status === 'confirmed' ? 'Đã xác nhận bản ghi thành công!' : 'Đã từ chối bản ghi thành công!', 'success');
+            closeModal();
+          } else {
+            throw new Error(result.message || 'Lỗi từ Apps Script backend');
+          }
+        } catch (err) {
+          console.error(err);
+          showNotification('Lỗi đồng bộ: ' + err.message, 'error');
+        } finally {
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerHTML = originalConfirmText; }
+          if (rejectBtn) { rejectBtn.disabled = false; rejectBtn.innerHTML = originalRejectText; }
+        }
+      }
+
       // Show record modal
       function showModal(recordId) {
+        window.currentRecordId = recordId;
         const records = window.EMBEDDED_DATA?.records || [];
         const record = records.find(r => r._record_id === recordId);
 
         if (!record) {
           alert('Không tìm thấy record: ' + recordId);
           return;
+        }
+
+        // Update modal title status badge
+        const modalTitle = document.getElementById('modalTitle');
+        if (modalTitle) {
+          const displayStatus = record.status === 'pending' ? 'Chờ Xử Lý' : (record.status === 'confirmed' ? 'Đã Xác Nhận' : 'Bị Từ Chối');
+          const badgeClass = record.status || 'pending';
+          modalTitle.innerHTML = `Chi tiết thông tin quyền <span class="status-badge status-${badgeClass}" style="margin-left: 10px; font-size: 12px; padding: 4px 8px; vertical-align: middle;">${displayStatus}</span>`;
         }
 
         // Update Copy All button action
@@ -1497,19 +1846,25 @@
 
       // Confirm/Reject buttons
       function confirmRecord() {
-        alert('Record xác nhận (tính năng sắp tới)');
-        closeModal();
+        if (window.currentRecordId) {
+          submitRecordStatus(window.currentRecordId, 'confirmed');
+        }
       }
 
       function rejectRecord() {
-        alert('Record bị từ chối (tính năng sắp tới)');
-        closeModal();
+        if (window.currentRecordId) {
+          submitRecordStatus(window.currentRecordId, 'rejected');
+        }
       }
 
       // Initialize table on load
       if (window.EMBEDDED_DATA && window.EMBEDDED_DATA.records) {
         window.EMBEDDED_DATA.records = window.EMBEDDED_DATA.records.map(normalizeRecord).filter(Boolean);
+        window.ORIGINAL_RECORDS = JSON.parse(JSON.stringify(window.EMBEDDED_DATA.records));
         initializeTable(window.EMBEDDED_DATA.records);
+        
+        // Trigger background sync from Google Sheets
+        syncStatusesFromGoogleSheet();
       }
 
       // Filter table by search text, date range, and status
