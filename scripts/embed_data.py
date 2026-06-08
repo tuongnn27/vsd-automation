@@ -24,6 +24,12 @@ def embed_data():
     pattern = r'^\s*window\.EMBEDDED_DATA\s*=\s*\{.*?\};'
     pattern_flexible = r'window\.EMBEDDED_DATA\s*=\s*\{.*?\};'
 
+    # Extrac record count to update console.log
+    records_list = data.get('records', []) if isinstance(data, dict) else []
+    record_count = len(records_list)
+    log_pattern = r'console\.log\("Embedded data loaded: \d+ records"\);'
+    new_log_line = f'console.log("Embedded data loaded: {record_count} records");'
+
     for html_path in html_paths:
         if not os.path.exists(html_path):
             print(f"Warning: {html_path} not found, skipping")
@@ -38,6 +44,9 @@ def embed_data():
         if new_html == html_content:
             print(f"Warning: No changes made to HTML {os.path.basename(html_path)}. Pattern might not have matched. Trying flexible pattern...")
             new_html = re.sub(pattern_flexible, lambda _: new_line, html_content)
+
+        # Update console.log record count
+        new_html = re.sub(log_pattern, new_log_line, new_html)
             
         print(f"Writing updated HTML to {html_path}...")
         with open(html_path, 'w', encoding='utf-8') as f:
