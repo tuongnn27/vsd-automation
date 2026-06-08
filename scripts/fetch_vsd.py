@@ -1409,6 +1409,129 @@ class VSDFetcher:
             logger.debug(f"  ! Error extracting detail: {str(e)[:50]}")
             return None, None, None
 
+    def merge_records(self, new_records, old_records):
+        """
+        Merge new records and old records by URL with ticker-prefix deduplication rules.
+        """
+        # Group all records by URL
+        url_to_new = {}
+        for r in new_records:
+            url = r.get('url')
+            if url:
+                url_to_new.setdefault(url, []).append(r)
+                
+        url_to_old = {}
+        for r in old_records:
+            url = r.get('url')
+            if url:
+                url_to_old.setdefault(url, []).append(r)
+                
+        merged = []
+        
+        # Helper to parse dates for sorting
+        def parse_date_str(date_str):
+            if not date_str:
+                return datetime.min
+            for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(str(date_str).strip(), fmt)
+                except ValueError:
+                    continue
+            return datetime.min
+            
+        # 1. Process URLs that are in new_records (replace old records with new records)
+        for url, new_list in url_to_new.items():
+            old_list = url_to_old.get(url, [])
+            if old_list:
+                for r_old in old_list:
+                    # Find matching new record
+                    target = None
+                    if len(new_list) == 1:
+                        target = new_list[0]
+                    else:
+                        # Try to match by _record_id
+                        old_id = r_old.get('_record_id')
+                        for r_new in new_list:
+                            if r_new.get('_record_id') == old_id:
+                                target = r_new
+                                break
+                        if not target:
+                            # Try to match by title similarity
+                            p_title = str(r_old.get('title') or '').strip().lower()
+                            for r_new in new_list:
+                                new_title = str(r_new.get('title') or '').strip().lower()
+                                if new_title == p_title or new_title.split(':', 1)[-1].strip() == p_title.split(':', 1)[-1].strip():
+                                    target = r_new
+                                    break
+                        if not target:
+                            target = new_list[0]
+                            
+                    # Merge flags
+                    for flag in ['status', 'confirmation_status', 'is_completed', 'is_special']:
+                        if flag in r_old and r_old[flag] is not None:
+                            if flag == 'status' and r_old[flag] == 'pending':
+                                continue
+                            if flag == 'confirmation_status' and r_old[flag] == 'awaiting_review':
+                                continue
+                            target[flag] = r_old[flag]
+                            
+            merged.extend(new_list)
+            
+        # 2. Process URLs that are NOT in new_records (keep old records but deduplicate them)
+        for url, old_list in url_to_old.items():
+            if url in url_to_new:
+                continue
+                
+            if len(old_list) == 1:
+                merged.append(old_list[0])
+                continue
+                
+            # We have multiple old records for this URL. Deduplicate them:
+            ticker_prefixed = []
+            non_prefixed = []
+            for r in old_list:
+                code = r.get('MaChungKhoan') or r.get('code') or ''
+                title = r.get('title') or ''
+                prefix = f"{code}:"
+                if title.strip().startswith(prefix):
+                    ticker_prefixed.append(r)
+                else:
+                    non_prefixed.append(r)
+                    
+            if ticker_prefixed:
+                # Merge flags from non-prefixed to prefixed
+                for r_non in non_prefixed:
+                    # Find matching prefixed record
+                    if len(ticker_prefixed) == 1:
+                        target = ticker_prefixed[0]
+                    else:
+                        target = None
+                        p_title = str(r_non.get('title') or '').strip().lower()
+                        for r_pref in ticker_prefixed:
+                            pref_title = str(r_pref.get('title') or '').split(':', 1)[-1].strip().lower()
+                            if pref_title in p_title or p_title in pref_title:
+                                target = r_pref
+                                break
+                        if not target:
+                            target = ticker_prefixed[0]
+                            
+                    # Merge
+                    for flag in ['status', 'confirmation_status', 'is_completed', 'is_special']:
+                        if flag in r_non and r_non[flag] is not None:
+                            if flag == 'status' and r_non[flag] == 'pending':
+                                continue
+                            if flag == 'confirmation_status' and r_non[flag] == 'awaiting_review':
+                                continue
+                            target[flag] = r_non[flag]
+                            
+                merged.extend(ticker_prefixed)
+            else:
+                # Fallback: keep the one with the latest collected_at
+                old_list_sorted = sorted(old_list, key=lambda x: parse_date_str(x.get('collected_at') or x.get('published_at')), reverse=True)
+                merged.append(old_list_sorted[0])
+                
+        return merged
+
     def fetch_latest_news(self):
         """
         Crawl tất cả trang tin tức VSD từ ngày gần nhất:
@@ -1808,26 +1931,8 @@ class VSDFetcher:
 
                     logger.info(f"  📚 Found {len(existing_records)} existing records, merging...")
 
-                    # Keep all records including those split by purpose (don't remove duplicates)
-                    # This allows records with same code but different lý_do_mục_đích to coexist
-                    merged_data = list(result_data)
-                    logger.info(f"  📝 Keeping all {len(result_data)} records including split by purpose (no deduplication)")
-
-                    # Create set of record IDs in new data for quick lookup and self-deduplication
-                    seen_ids_set = set(r.get('_record_id') or self.generate_record_id(r) for r in result_data)
-
-                    # Thêm existing records nếu không trùng với ID đã thấy
-                    added_count = 0
-                    for existing_record in existing_records:
-                        ext_id = existing_record.get('_record_id') or self.generate_record_id(existing_record)
-                        if ext_id and ext_id not in seen_ids_set:
-                            # Keep _record_id in the record if generated
-                            existing_record['_record_id'] = ext_id
-                            merged_data.append(existing_record)
-                            seen_ids_set.add(ext_id)
-                            added_count += 1
-
-                    logger.info(f"  ✓ Merged by _record_id (deduplicated): {len(result_data)} new + {added_count} added existing = {len(merged_data)} total")
+                    merged_data = self.merge_records(result_data, existing_records)
+                    logger.info(f"  ✓ Merged by URL and ticker-prefix rule: {len(result_data)} new + {len(merged_data) - len(result_data)} old = {len(merged_data)} total")
                     total_count = len(merged_data)
 
                 except Exception as e:
@@ -1932,72 +2037,52 @@ class VSDFetcher:
                 os.makedirs(output_dir, exist_ok=True)
 
             # Kiểm tra file cũ có tồn tại không
-            final_records = list(new_records)  # Start with new records
+            final_records = list(new_records)
             new_count = len(new_records)
 
             if os.path.exists(output_path):
                 try:
                     # Đọc file cũ
                     df_old = pd.read_excel(output_path, sheet_name='Tin chứng khoán')
-                    
-                    # Convert NaN values to None for clean ID generation and standard types
                     df_old = df_old.where(pd.notnull(df_old), None)
                     
-                    # Generate set of record IDs for new records and self-deduplication
-                    seen_ids = set()
-                    for r in new_records:
-                        rid = r.get('_record_id') or self.generate_record_id(r)
-                        if rid:
-                            seen_ids.add(rid)
-                    
-                    # Filter and append unique old records
-                    added_count = 0
+                    old_records = []
                     for _, row in df_old.iterrows():
                         old_record = row.to_dict()
-                        
-                        # Reconstruct title fallback like main() does to ensure stable ID hashing
                         if 'title' not in old_record or not old_record.get('title'):
                             old_record['title'] = old_record.get('NoiDung') or f"{old_record.get('MaChungKhoan')}: Tin chứng khoán"
                         
-                        # Generate ID for old record
                         old_rid = old_record.get('_record_id') or self.generate_record_id(old_record)
+                        old_record['_record_id'] = old_rid
                         
-                        if old_rid and old_rid not in seen_ids:
-                            # Standardize dates if missing
-                            if 'published_at' not in old_record or not old_record.get('published_at'):
-                                pub_at = old_record.get('published_date') or old_record.get('date')
-                                if pub_at:
-                                    pub_at_str = str(pub_at).strip()
-                                    if ' ' not in pub_at_str:
-                                        pub_at_str = f"{pub_at_str} 00:00:00"
-                                    old_record['published_at'] = pub_at_str
-                                else:
-                                    old_record['published_at'] = None
-                                    
-                            if 'collected_at' not in old_record or not old_record.get('collected_at'):
-                                coll_at = old_record.get('collected_date')
-                                if coll_at:
-                                    coll_at_str = str(coll_at).strip()
-                                    if ' ' not in coll_at_str:
-                                        coll_at_str = f"{coll_at_str} 00:00:00"
-                                    old_record['collected_at'] = coll_at_str
-                                else:
-                                    old_record['collected_at'] = None
-                                    
-                            # Remove old date fields
-                            old_record.pop('date', None)
-                            old_record.pop('published_date', None)
-                            old_record.pop('collected_date', None)
-                            
-                            # Write the record ID back to the dict
-                            old_record['_record_id'] = old_rid
-                            
-                            final_records.append(old_record)
-                            seen_ids.add(old_rid)
-                            added_count += 1
-
-                    logger.info(f"  ✓ Merged by _record_id (deduplicated): {new_count} new + {added_count} kept = {len(final_records)} total")
-
+                        # Standardize dates
+                        if 'published_at' not in old_record or not old_record.get('published_at'):
+                            pub_at = old_record.get('published_date') or old_record.get('date')
+                            if pub_at:
+                                pub_at_str = str(pub_at).strip()
+                                if ' ' not in pub_at_str:
+                                    pub_at_str = f"{pub_at_str} 00:00:00"
+                                old_record['published_at'] = pub_at_str
+                            else:
+                                old_record['published_at'] = None
+                                
+                        if 'collected_at' not in old_record or not old_record.get('collected_at'):
+                            coll_at = old_record.get('collected_date')
+                            if coll_at:
+                                coll_at_str = str(coll_at).strip()
+                                if ' ' not in coll_at_str:
+                                    coll_at_str = f"{coll_at_str} 00:00:00"
+                                old_record['collected_at'] = coll_at_str
+                            else:
+                                old_record['collected_at'] = None
+                                
+                        old_record.pop('date', None)
+                        old_record.pop('published_date', None)
+                        old_record.pop('collected_date', None)
+                        old_records.append(old_record)
+                        
+                    final_records = self.merge_records(new_records, old_records)
+                    logger.info(f"  ✓ Merged by URL and ticker-prefix rule: {new_count} new + {len(final_records) - new_count} kept = {len(final_records)} total")
                 except Exception as e:
                     logger.warning(f"  ⚠ Could not read existing file: {str(e)[:50]}, will create new file")
                     # Fallback: just use new records
