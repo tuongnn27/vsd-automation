@@ -1810,21 +1810,24 @@ class VSDFetcher:
 
                     # Keep all records including those split by purpose (don't remove duplicates)
                     # This allows records with same code but different lý_do_mục_đích to coexist
-                    merged_data = result_data
-
+                    merged_data = list(result_data)
                     logger.info(f"  📝 Keeping all {len(result_data)} records including split by purpose (no deduplication)")
 
-                    # Create set of codes in new data for quick lookup
-                    new_codes_set = set(r.get('code') for r in result_data)
+                    # Create set of record IDs in new data for quick lookup and self-deduplication
+                    seen_ids_set = set(r.get('_record_id') or self.generate_record_id(r) for r in result_data)
 
-                    # Thêm existing records nếu không trùng với code mới
+                    # Thêm existing records nếu không trùng với ID đã thấy
                     added_count = 0
                     for existing_record in existing_records:
-                        if existing_record.get('code') not in new_codes_set:
+                        ext_id = existing_record.get('_record_id') or self.generate_record_id(existing_record)
+                        if ext_id and ext_id not in seen_ids_set:
+                            # Keep _record_id in the record if generated
+                            existing_record['_record_id'] = ext_id
                             merged_data.append(existing_record)
+                            seen_ids_set.add(ext_id)
                             added_count += 1
 
-                    logger.info(f"  ✓ Merged: {len(result_data)} new + {added_count} added existing = {len(merged_data)} total")
+                    logger.info(f"  ✓ Merged by _record_id (deduplicated): {len(result_data)} new + {added_count} added existing = {len(merged_data)} total")
                     total_count = len(merged_data)
 
                 except Exception as e:
@@ -1929,7 +1932,6 @@ class VSDFetcher:
                 os.makedirs(output_dir, exist_ok=True)
 
             # Kiểm tra file cũ có tồn tại không
-            existing_keys = set()
             final_records = list(new_records)  # Start with new records
             new_count = len(new_records)
 
@@ -1938,58 +1940,59 @@ class VSDFetcher:
                     # Đọc file cũ
                     df_old = pd.read_excel(output_path, sheet_name='Tin chứng khoán')
                     
-                    # Xác định cột key để gom nhóm (ưu tiên MaChungKhoan, sau đó đến code hoặc url)
-                    key_col = None
-                    for candidate in ['MaChungKhoan', 'code', 'url']:
-                        if candidate in df_old.columns:
-                            key_col = candidate
-                            break
-                            
-                    new_keys = set()
+                    # Convert NaN values to None for clean ID generation and standard types
+                    df_old = df_old.where(pd.notnull(df_old), None)
+                    
+                    # Generate set of record IDs for new records and self-deduplication
+                    seen_ids = set()
                     for r in new_records:
-                        k = r.get('MaChungKhoan') or r.get('code') or r.get('url', '')
-                        if k:
-                            new_keys.add(str(k))
+                        rid = r.get('_record_id') or self.generate_record_id(r)
+                        if rid:
+                            seen_ids.add(rid)
+                    
+                    # Filter and append unique old records
+                    added_count = 0
+                    for _, row in df_old.iterrows():
+                        old_record = row.to_dict()
+                        
+                        # Generate ID for old record
+                        old_rid = old_record.get('_record_id') or self.generate_record_id(old_record)
+                        
+                        if old_rid and old_rid not in seen_ids:
+                            # Standardize dates if missing
+                            if 'published_at' not in old_record or not old_record.get('published_at'):
+                                pub_at = old_record.get('published_date') or old_record.get('date')
+                                if pub_at:
+                                    pub_at_str = str(pub_at).strip()
+                                    if ' ' not in pub_at_str:
+                                        pub_at_str = f"{pub_at_str} 00:00:00"
+                                    old_record['published_at'] = pub_at_str
+                                else:
+                                    old_record['published_at'] = None
+                                    
+                            if 'collected_at' not in old_record or not old_record.get('collected_at'):
+                                coll_at = old_record.get('collected_date')
+                                if coll_at:
+                                    coll_at_str = str(coll_at).strip()
+                                    if ' ' not in coll_at_str:
+                                        coll_at_str = f"{coll_at_str} 00:00:00"
+                                    old_record['collected_at'] = coll_at_str
+                                else:
+                                    old_record['collected_at'] = None
+                                    
+                            # Remove old date fields
+                            old_record.pop('date', None)
+                            old_record.pop('published_date', None)
+                            old_record.pop('collected_date', None)
                             
-                    if key_col:
-                        existing_keys = set(df_old[key_col].astype(str).tolist())
-                        logger.info(f"  📚 Found {len(existing_keys)} existing keys in file")
+                            # Write the record ID back to the dict
+                            old_record['_record_id'] = old_rid
+                            
+                            final_records.append(old_record)
+                            seen_ids.add(old_rid)
+                            added_count += 1
 
-                        # Tìm những records cũ không có trong new records
-                        for idx, row in df_old.iterrows():
-                            old_k = str(row.get(key_col, ''))
-                            if old_k and old_k not in new_keys:
-                                old_record = row.to_dict()
-                                
-                                # Chuyển đổi định dạng ngày tháng cũ sang mới
-                                if 'published_at' not in old_record or pd.isna(old_record.get('published_at')):
-                                    pub_at = old_record.get('published_date') or old_record.get('date')
-                                    if pub_at and not pd.isna(pub_at):
-                                        pub_at_str = str(pub_at).strip()
-                                        if ' ' not in pub_at_str:
-                                            pub_at_str = f"{pub_at_str} 00:00:00"
-                                        old_record['published_at'] = pub_at_str
-                                    else:
-                                        old_record['published_at'] = None
-                                        
-                                if 'collected_at' not in old_record or pd.isna(old_record.get('collected_at')):
-                                    coll_at = old_record.get('collected_date')
-                                    if coll_at and not pd.isna(coll_at):
-                                        coll_at_str = str(coll_at).strip()
-                                        if ' ' not in coll_at_str:
-                                            coll_at_str = f"{coll_at_str} 00:00:00"
-                                        old_record['collected_at'] = coll_at_str
-                                    else:
-                                        old_record['collected_at'] = None
-                                        
-                                # Xoá các cột cũ
-                                old_record.pop('date', None)
-                                old_record.pop('published_date', None)
-                                old_record.pop('collected_date', None)
-                                
-                                final_records.append(old_record)
-
-                    logger.info(f"  ✓ Merged: {new_count} new + {len(final_records) - new_count} kept = {len(final_records)} total")
+                    logger.info(f"  ✓ Merged by _record_id (deduplicated): {new_count} new + {added_count} kept = {len(final_records)} total")
 
                 except Exception as e:
                     logger.warning(f"  ⚠ Could not read existing file: {str(e)[:50]}, will create new file")
