@@ -874,9 +874,9 @@ class VSDFetcher:
         Returns:
             Stable record ID string (e.g., "DHC_a1b2c3d4")
         """
-        code = record.get('code', '').strip() or record.get('MaChungKhoan', '').strip()
-        url = record.get('url', '').strip()
-        title = record.get('title', '').strip() or record.get('TieuDe', '').strip() or record.get('NoiDung', '').strip() or ''
+        code = str(record.get('code') or record.get('MaChungKhoan') or '').strip()
+        url = str(record.get('url') or '').strip()
+        title = str(record.get('title') or record.get('TieuDe') or record.get('NoiDung') or '').strip()
 
         # Build stable content to hash
         hash_content = f"{url}_{title}"
