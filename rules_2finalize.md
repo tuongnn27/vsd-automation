@@ -28,6 +28,9 @@ Từ các trường thông tin craw được ban đầu, hãy tiền xử lý c�
   * Nếu [NhomQuyen]="Cổ tức cổ phiếu / Cổ phiếu thưởng":
     * Trả về "Cổ phiếu thưởng": nếu giá trị tại cột title hoặc lý_do_mục_đích (được tiền xử lý) chứa một trong số các keywords ["phat hanh co phieu", "nhan co phieu", "nhan them co phieu", "co phieu thuong", "thuong co phieu"]; hoặc trong giá trị của một trong 2 trường title hoặc lý_do_mục_đích (được tiền xử lý) xuất hiện đồng thời 2 keywords "co phieu" và "tang von"
     * Trả về "Cổ tức cổ phiếu": nếu giá trị tại trường title hoặc lý_do_mục_đích (được tiền xử lý) chứa một trong số các keywords ["co tuc bang co phieu", "co tuc co phieu", "chuyen doi thanh co phan", "co phieu de tra co tuc"] hoặc đồng thời chứa 2 keywords "co tuc" và "co phieu".
+  * Nếu [NhomQuyen]="Cổ tức tiền":
+    * Trả về "Trái phiếu": nếu giá trị tại trường title hoặc lý_do_mục_đích (được tiền xử lý) chứa keyword "trai phieu"
+	* Trả về "Cổ phiếu": các trường hợp còn lại.
   * Nếu [NhomQuyen]="Đăng ký Lưu ký":
     * Trả về "Đăng ký": Nếu một trong các trường title có chứa keyword "dang ky"
 	* Trả về "Lưu ký": Nếu một trong các trường title có chứa keyword "luu ky".
@@ -58,7 +61,7 @@ Từ các trường thông tin craw được ban đầu, hãy tiền xử lý c�
 
 * Trường [NgayThanhToan]:
   * Nếu giá trị tại trường [NhomQuyen] (như rule bên trên) là một trong số các loại ["Quyền biểu quyết", "Cổ phiếu thưởng", "Cổ tức bằng cổ phiếu"] -> trả về null
-  * Nếu giá trị tại trường [NhomQuyen] (như rule bên trên) là các loại còn lại -> Trong text_content (được tiền xử lý), tìm một trong số các keywords ["ngay thuc hien", "ngay thanh toan", "thoi gian thuc hien", "thoi gian thanh toan"], sau đó duyệt tiếp đến khi gặp ký tự "-" hoặc ký tự xuống dòng (tuỳ điều kiện nào xảy ra trước) và lấy ra chuỗi ký tự có định dạng ngày đầu tiên tìm được, tuy nhiên, nếu tìm thấy 2 chuỗi ký tự có định dạng ngày thì lấy chuỗi ở gần cuối hơn. Chuỗi ký tự có định dạng ngày này có thể là một trong các dạng sau ['dd/mm/YYYY', 'd/m/YYYY', 'd/mm/YYYY', 'dd/m/YYYY', 'mm/YYYY', 'm/YYYY', 'ngay dd thang mm nam YYYY', 'ngay dd thang m nam YYYY', 'ngay d thang mm nam YYYY', 'ngay d thang m nam YYYY', 'thang mm nam YYYY', 'thang m nam YYYY']. Kết quả trả ra là ngày ở định dạng dd/mm/YYYY, nếu chuỗi tìm được rơi vào một trong các dạng ['mm/YYYY', 'm/YYYY', 'thang mm nam YYYY', 'thang m nam YYYY'] thì lấy ngày cuối của tháng đó.
+  * Nếu giá trị tại trường [NhomQuyen] (như rule bên trên) là các loại còn lại -> Trong text_content (được tiền xử lý), tìm một trong số các keywords ["ngay thuc hien", "ngay thanh toan", "thoi gian thuc hien", "thoi gian thanh toan"], sau đó duyệt tiếp đến khi gặp ký tự "-" hoặc ký tự xuống dòng (tuỳ điều kiện nào xảy ra trước) và lấy ra chuỗi ký tự có định dạng ngày đầu tiên tìm được. Chuỗi ký tự có định dạng ngày này có thể là một trong các dạng sau ['dd/mm/YYYY', 'd/m/YYYY', 'd/mm/YYYY', 'dd/m/YYYY', 'mm/YYYY', 'm/YYYY', 'ngay dd thang mm nam YYYY', 'ngay dd thang m nam YYYY', 'ngay d thang mm nam YYYY', 'ngay d thang m nam YYYY', 'thang mm nam YYYY', 'thang m nam YYYY']. Kết quả trả ra là ngày ở định dạng dd/mm/YYYY, nếu chuỗi tìm được rơi vào một trong các dạng ['mm/YYYY', 'm/YYYY', 'thang mm nam YYYY', 'thang m nam YYYY'] thì lấy ngày cuối của tháng đó.
 
 * Trường [CNQuyenMuaTuNgay] & trường [CNQuyenMuaDenNgay]:
   * Nếu giá trị tại trường [NhomQuyen] (như rule bên trên) là "Quyền mua" -> Trong text_content (được tiền xử lý), tìm một trong số các keywords ["thoi gian chuyen nhuong", "ngay chuyen nhuong", "han chuyen nhuong"] xuất hiện đầu tiên, sau đó duyệt tiếp đến khi gặp ký tự "-" hoặc "+" hoặc ký tự xuống dòng (tuỳ điều kiện nào xảy ra trước), lấy chuỗi ký tự có định dạng ngày đầu tiên tìm thấy gán cho trường [CNQuyenMuaTuNgay] và chuỗi ký tự có định dạng ngày sau cùng nhất gán cho trường [CNQuyenMuaDenNgay]. Chuỗi ký tự có định dạng ngày này có thể là một trong các dạng sau ['dd/mm/YYYY', 'd/m/YYYY', 'd/mm/YYYY', 'dd/m/YYYY', 'mm/YYYY', 'm/YYYY', 'ngay dd thang mm nam YYYY', 'ngay dd thang m nam YYYY', 'ngay d thang mm nam YYYY', 'ngay d thang m nam YYYY', 'thang mm nam YYYY', 'thang m nam YYYY']. Kết quả trả ra là ngày ở định dạng dd/mm/YYYY, nếu chuỗi tìm được rơi vào một trong các dạng ['mm/YYYY', 'm/YYYY', 'thang mm nam YYYY', 'thang m nam YYYY'] thì lấy ngày cuối của tháng đó
@@ -103,6 +106,8 @@ Từ các trường thông tin craw được ban đầu, hãy tiền xử lý c�
   * Còn lại, trả ra giá trị 0.
 
 * Trường [is_special] là một trường boolean trả ra giá trị 0 hoặc 1:
-  * Trả ra 1 khi [NhomQuyen] là một trong các loại ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Đăng ký Lưu ký", "Tin huỷ", "Thay đổi"]
+  * Trả ra 1 khi thoả một trong hai điều kiện:
+    * hoặc [NhomQuyen] là một trong các loại ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Đăng ký Lưu ký", "Tin huỷ", "Thay đổi"]
+	* hoặc giá trị tại cột title (được tiền xử lý) chứa dấu chấm phẩy ";".
   * Còn lại, trả ra giá trị 0.
 
