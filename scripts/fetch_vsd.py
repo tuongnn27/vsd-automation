@@ -234,6 +234,70 @@ def extract_original_line_by_keyword(original_text, keywords):
                 return line.strip()
     return None
 
+def check_keyword_with_negative_prefixes(text, keyword, negative_prefixes):
+    """
+    Kiểm tra xem keyword có xuất hiện trong text hay không,
+    với điều kiện nó không bị bắt đầu bởi bất kỳ negative_prefix nào.
+    """
+    if not text or not keyword:
+        return False
+    start = 0
+    while True:
+        pos = text.find(keyword, start)
+        if pos == -1:
+            return False
+        # Kiểm tra xem có tiền tố phủ định nào đứng ngay trước keyword không
+        is_negative = False
+        for prefix in negative_prefixes:
+            prefix_len = len(prefix)
+            if pos >= prefix_len:
+                preceding = text[pos - prefix_len:pos]
+                if preceding == prefix:
+                    is_negative = True
+                    break
+        if not is_negative:
+            return True
+        start = pos + 1
+
+def find_earliest_keyword(text, keywords):
+    """
+    Tìm vị trí xuất hiện sớm nhất của một trong các keywords trong text.
+    Trả về (vị trí, keyword) hoặc (-1, None) nếu không tìm thấy.
+    """
+    if not text:
+        return -1, None
+    earliest_pos = -1
+    earliest_kw = None
+    for kw in keywords:
+        pos = text.find(kw)
+        if pos != -1:
+            if earliest_pos == -1 or pos < earliest_pos:
+                earliest_pos = pos
+                earliest_kw = kw
+    return earliest_pos, earliest_kw
+
+def parse_vietnamese_float(num_str):
+    """
+    Parse chuỗi số theo định dạng tiếng Việt (dùng dấu phẩy làm phần thập phân
+    hoặc dấu chấm làm phần ngăn cách hàng nghìn) thành kiểu float.
+    """
+    if not num_str:
+        return None
+    num_str = num_str.strip()
+    if '.' in num_str and ',' in num_str:
+        num_str = num_str.replace('.', '').replace(',', '.')
+    elif ',' in num_str:
+        num_str = num_str.replace(',', '.')
+    elif '.' in num_str:
+        # Nhận dạng nếu là ngăn cách hàng nghìn (ví dụ "10.000") hay thập phân (ví dụ "2.5")
+        parts = num_str.split('.')
+        if len(parts[-1]) == 3 and len(parts) > 1:
+            num_str = num_str.replace('.', '')
+    try:
+        return float(num_str)
+    except ValueError:
+        return None
+
 class VSDFetcher:
     def __init__(self):
         """
@@ -357,7 +421,13 @@ class VSDFetcher:
         # c. Đăng ký Lưu ký
         if nhom_quyen is None:
             dk_keywords = ["dang ky chung chi", "dang ky chung khoan", "dang ky co phieu", "dang ky trai phieu", "luu ky chung chi", "luu ky chung khoan", "luu ky co phieu", "luu ky trai phieu"]
-            if any(kw in pre_title or kw in pre_ly_do for kw in dk_keywords):
+            neg_prefixes = ["to chuc ", "to chuc dang ky ", "to chuc luu ky ", "to chuc dang ky luu ky ", "to chuc luu ky dang ky "]
+            has_dk = False
+            for kw in dk_keywords:
+                if check_keyword_with_negative_prefixes(pre_title, kw, neg_prefixes) or check_keyword_with_negative_prefixes(pre_ly_do, kw, neg_prefixes):
+                    has_dk = True
+                    break
+            if has_dk:
                 nhom_quyen = "Đăng ký Lưu ký"
                 
         # d. Cổ tức cổ phiếu / Cổ phiếu thưởng
@@ -424,6 +494,11 @@ class VSDFetcher:
                     is_ctcp = ("co tuc" in pre_title and "co phieu" in pre_title) or ("co tuc" in pre_ly_do and "co phieu" in pre_ly_do)
                 if is_ctcp:
                     loai_quyen = "Cổ tức cổ phiếu"
+        elif nhom_quyen == "Cổ tức tiền":
+            if "trai phieu" in pre_title or "trai phieu" in pre_ly_do:
+                loai_quyen = "Trái phiếu"
+            else:
+                loai_quyen = "Cổ phiếu"
         elif nhom_quyen == "Đăng ký Lưu ký":
             if "dang ky" in pre_title:
                 loai_quyen = "Đăng ký"
@@ -455,37 +530,33 @@ class VSDFetcher:
                 end_pos = min(indices) if indices else len(sub_text)
                 
                 target_sub = sub_text[:end_pos]
-                isin_match = re.search(r'([a-z][a-z0-9]{10}\d)', target_sub)
+                isin_match = re.search(r'\b([a-z][a-z0-9]{10}\d)\b', target_sub)
                 if isin_match:
                     isin_val = isin_match.group(1).upper()
 
         # MaTrongNuoc
         ma_trong_nuoc = None
-        for kw in ["ma quyen mua", "ma trong nuoc"]:
-            kw_pos = pre_text.find(kw)
-            if kw_pos != -1:
-                sub_text = pre_text[kw_pos:]
-                dash_idx = sub_text.find('-')
-                nl_idx = sub_text.find('\n')
-                indices = [idx for idx in [dash_idx, nl_idx] if idx != -1]
-                end_pos = min(indices) if indices else len(sub_text)
-                target_sub = sub_text[:end_pos]
-                mn_match = re.search(r'([a-z][a-z0-9]{7}\d)', target_sub)
-                if mn_match:
-                    ma_trong_nuoc = mn_match.group(1).upper()
-                    break
+        mn_kw_pos, mn_kw = find_earliest_keyword(pre_text, ["ma quyen mua", "ma trong nuoc"])
+        if mn_kw_pos != -1:
+            sub_text = pre_text[mn_kw_pos:]
+            dash_idx = sub_text.find('-')
+            nl_idx = sub_text.find('\n')
+            indices = [idx for idx in [dash_idx, nl_idx] if idx != -1]
+            end_pos = min(indices) if indices else len(sub_text)
+            target_sub = sub_text[:end_pos]
+            mn_match = re.search(r'\b([a-z][a-z0-9]{7}\d)\b', target_sub)
+            if mn_match:
+                ma_trong_nuoc = mn_match.group(1).upper()
 
         # NgayChot
         ngay_chot_val = record.get('ngày_đăng_KY_cuối') or record.get('ngày_đăng_ký_cuối') or record.get('ngày_đăng_ky_cuối')
         if not ngay_chot_val:
-            for kw in ["ngay dang ky cuoi", "thoi gian dang ky cuoi", "ngay chot", "thoi gian chot"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    segment = pre_text[kw_pos:kw_pos + 200]
-                    date_found = extract_earliest_date(segment)
-                    if date_found:
-                        ngay_chot_val = date_found
-                        break
+            nc_kw_pos, nc_kw = find_earliest_keyword(pre_text, ["ngay dang ky cuoi", "thoi gian dang ky cuoi", "ngay chot", "thoi gian chot"])
+            if nc_kw_pos != -1:
+                segment = pre_text[nc_kw_pos:nc_kw_pos + 200]
+                date_found = extract_earliest_date(segment)
+                if date_found:
+                    ngay_chot_val = date_found
 
         # NgayGDKHQ
         ngay_gdkhq_val = None
@@ -502,22 +573,20 @@ class VSDFetcher:
         uoc_tinh_ngay_thuc_hien = None
         if nhom_quyen == "Quyền biểu quyết":
             found = False
-            for kw in ["thoi gian thuc hien", "ngay thuc hien", "thoi gian hien", "ngay hien", "thoi gian thuc", "ngay thuc"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos:]
-                    dash_idx = sub_text.find('-')
-                    plus_idx = sub_text.find('+')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    
-                    target_sub = sub_text[:end_pos]
-                    dates_list = extract_all_dates_in_segment(target_sub)
-                    if dates_list:
-                        ngay_thuc_hien = dates_list[-1]
-                        found = True
-                        break
+            nth_kw_pos, nth_kw = find_earliest_keyword(pre_text, ["thoi gian thuc hien", "ngay thuc hien", "thoi gian hien", "ngay hien", "thoi gian thuc", "ngay thuc"])
+            if nth_kw_pos != -1:
+                sub_text = pre_text[nth_kw_pos:]
+                dash_idx = sub_text.find('-')
+                plus_idx = sub_text.find('+')
+                nl_idx = sub_text.find('\n')
+                indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
+                end_pos = min(indices) if indices else len(sub_text)
+                
+                target_sub = sub_text[:end_pos]
+                dates_list = extract_all_dates_in_segment(target_sub)
+                if dates_list:
+                    ngay_thuc_hien = dates_list[-1]
+                    found = True
             
             if not found:
                 if ngay_chot_val:
@@ -537,63 +606,57 @@ class VSDFetcher:
 
         # NgayThanhToan
         ngay_thanh_toan = None
-        if nhom_quyen not in ["Quyền biểu quyết", "Cổ phiếu thưởng", "Cổ tức bằng cổ phiếu"] and nhom_quyen is not None:
-            for kw in ["ngay thuc hien", "ngay thanh toan", "thoi gian thuc hien", "thoi gian thanh toan"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos:]
-                    dash_idx = sub_text.find('-')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    
-                    target_sub = sub_text[:end_pos]
-                    dates_list = extract_all_dates_in_segment(target_sub)
-                    if dates_list:
-                        ngay_thanh_toan = dates_list[-1]
-                        break
+        if nhom_quyen not in ["Quyền biểu quyết", "Cổ tức cổ phiếu / Cổ phiếu thưởng"] and nhom_quyen is not None:
+            ntt_kw_pos, ntt_kw = find_earliest_keyword(pre_text, ["ngay thuc hien", "ngay thanh toan", "thoi gian thuc hien", "thoi gian thanh toan"])
+            if ntt_kw_pos != -1:
+                sub_text = pre_text[ntt_kw_pos:]
+                dash_idx = sub_text.find('-')
+                nl_idx = sub_text.find('\n')
+                indices = [idx for idx in [dash_idx, nl_idx] if idx != -1]
+                end_pos = min(indices) if indices else len(sub_text)
+                
+                target_sub = sub_text[:end_pos]
+                dates_list = extract_all_dates_in_segment(target_sub)
+                if dates_list:
+                    ngay_thanh_toan = dates_list[0]
 
         # CNQuyenMuaTuNgay & CNQuyenMuaDenNgay
         cn_quyen_mua_tu_ngay = None
         cn_quyen_mua_den_ngay = None
         if nhom_quyen == "Quyền mua":
-            for kw in ["thoi gian chuyen nhuong", "ngay chuyen nhuong", "han chuyen nhuong"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos:]
-                    dash_idx = sub_text.find('-')
-                    plus_idx = sub_text.find('+')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    
-                    target_sub = sub_text[:end_pos]
-                    dates_list = extract_all_dates_in_segment(target_sub)
-                    if dates_list:
-                        cn_quyen_mua_tu_ngay = dates_list[0]
-                        cn_quyen_mua_den_ngay = dates_list[-1]
-                        break
+            cn_kw_pos, cn_kw = find_earliest_keyword(pre_text, ["thoi gian chuyen nhuong", "ngay chuyen nhuong", "han chuyen nhuong"])
+            if cn_kw_pos != -1:
+                sub_text = pre_text[cn_kw_pos:]
+                dash_idx = sub_text.find('-')
+                plus_idx = sub_text.find('+')
+                nl_idx = sub_text.find('\n')
+                indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
+                end_pos = min(indices) if indices else len(sub_text)
+                
+                target_sub = sub_text[:end_pos]
+                dates_list = extract_all_dates_in_segment(target_sub)
+                if dates_list:
+                    cn_quyen_mua_tu_ngay = dates_list[0]
+                    cn_quyen_mua_den_ngay = dates_list[-1]
 
         # DKQuyenMuaTuNgay & DKQuyenMuaDenNgay
         dk_quyen_mua_tu_ngay = None
         dk_quyen_mua_den_ngay = None
         if nhom_quyen == "Quyền mua":
-            for kw in ["thoi gian dang ky", "ngay dang ky", "han dang ky", "thoi gian dat", "ngay dat", "han dat", "thoi gian nop tien", "ngay nop tien", "han nop tien"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos:]
-                    dash_idx = sub_text.find('-')
-                    plus_idx = sub_text.find('+')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    
-                    target_sub = sub_text[:end_pos]
-                    dates_list = extract_all_dates_in_segment(target_sub)
-                    if dates_list:
-                        dk_quyen_mua_tu_ngay = dates_list[0]
-                        dk_quyen_mua_den_ngay = dates_list[-1]
-                        break
+            dk_kw_pos, dk_kw = find_earliest_keyword(pre_text, ["thoi gian dang ky", "ngay dang ky", "han dang ky", "thoi gian dat", "ngay dat", "han dat", "thoi gian nop tien", "ngay nop tien", "han nop tien"])
+            if dk_kw_pos != -1:
+                sub_text = pre_text[dk_kw_pos:]
+                dash_idx = sub_text.find('-')
+                plus_idx = sub_text.find('+')
+                nl_idx = sub_text.find('\n')
+                indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
+                end_pos = min(indices) if indices else len(sub_text)
+                
+                target_sub = sub_text[:end_pos]
+                dates_list = extract_all_dates_in_segment(target_sub)
+                if dates_list:
+                    dk_quyen_mua_tu_ngay = dates_list[0]
+                    dk_quyen_mua_den_ngay = dates_list[-1]
 
         # DonViHuongQuyen & GiaTriHuongQuyen
         don_vi_huong_quyen = None
@@ -603,33 +666,36 @@ class VSDFetcher:
             gia_tri_huong_quyen = 1
         elif nhom_quyen is not None:
             scope_text = ""
-            for kw in ["ty le thuc hien", "ty le thanh toan", "ti le thuc hien", "ti le thanh toan"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos + len(kw):]
-                    dash_idx = sub_text.find('-')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    scope_text = sub_text[:end_pos]
+            for line in text_content.split('\n'):
+                pre_line = remove_accents_and_lower(line)
+                pos, kw = find_earliest_keyword(pre_line, ["ty le thuc hien", "ty le thanh toan", "ti le thuc hien", "ti le thanh toan"])
+                if pos != -1:
+                    sub_line = pre_line[pos + len(kw):]
+                    dash_idx = sub_line.find('-')
+                    if dash_idx != -1:
+                        scope_text = sub_line[:dash_idx]
+                    else:
+                        scope_text = sub_line
                     break
                     
             if scope_text:
                 scope_text = re.sub(r'\s+', ' ', scope_text).strip()
                 num_pattern = r'(\d+(?:\.\d+)*(?:\,\d+)?)'
                 
+                verb_pattern = r'(?:\s*(?:se|duoc|nhan|them))*\s*'
+                
                 pattern_a = re.compile(
-                    r'(\d+)(?:\s*\([^)]+\))?\s*(?:co phieu|trai phieu|chung chi quy)\s*(?:se)?\s*(?:duoc)?\s*(?:nhan)?\s*(?:them)?\s*' + num_pattern,
+                    num_pattern + r'(?:\s*\([^)]+\))?\s*(?:co phieu|trai phieu|chung chi quy)' + verb_pattern + num_pattern,
                     re.IGNORECASE
                 )
                 
                 pattern_b = re.compile(
-                    r'(\d+)(?:\s*\([^)]+\))?\s*(?:co phieu|trai phieu|chung chi quy)\s*[-–—]\s*' + num_pattern + r'\s*quyen bieu quyet',
+                    num_pattern + r'(?:\s*\([^)]+\))?\s*(?:co phieu|trai phieu|chung chi quy)\s*[-–—]\s*' + num_pattern + r'\s*quyen bieu quyet',
                     re.IGNORECASE
                 )
                 
                 pattern_c = re.compile(
-                    r'(\d+)(?:\s*\([^)]+\))?\s*[:/]\s*' + num_pattern,
+                    num_pattern + r'(?:\s*\([^)]+\))?\s*[:/]\s*' + num_pattern,
                     re.IGNORECASE
                 )
                 
@@ -640,7 +706,7 @@ class VSDFetcher:
                     y_str = match.group(2)
                     
                     try:
-                        X = int(x_str)
+                        X = int(x_str.replace('.', ''))
                         if ',' in y_str:
                             y_clean = y_str.replace('.', '')
                             parts = y_clean.split(',')
@@ -664,24 +730,21 @@ class VSDFetcher:
         ty_le_menh_gia = None
         if nhom_quyen == "Cổ tức tiền":
             scope_text = ""
-            for kw in ["ty le thuc hien", "ty le thanh toan", "ti le thuc hien", "ti le thanh toan"]:
-                kw_pos = pre_text.find(kw)
-                if kw_pos != -1:
-                    sub_text = pre_text[kw_pos + len(kw):]
-                    dash_idx = sub_text.find('-')
-                    plus_idx = sub_text.find('+')
-                    nl_idx = sub_text.find('\n')
-                    indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
-                    end_pos = min(indices) if indices else len(sub_text)
-                    scope_text = sub_text[:end_pos]
-                    break
+            tl_kw_pos, tl_kw = find_earliest_keyword(pre_text, ["ty le thuc hien", "ty le thanh toan", "ti le thuc hien", "ti le thanh toan"])
+            if tl_kw_pos != -1:
+                sub_text = pre_text[tl_kw_pos + len(tl_kw):]
+                dash_idx = sub_text.find('-')
+                plus_idx = sub_text.find('+')
+                nl_idx = sub_text.find('\n')
+                indices = [idx for idx in [dash_idx, plus_idx, nl_idx] if idx != -1]
+                end_pos = min(indices) if indices else len(sub_text)
+                scope_text = sub_text[:end_pos]
                     
             if scope_text:
                 percent_match = re.search(r'(\d+(?:\.\d+)*(?:\,\d+)?)\s*%', scope_text)
                 if percent_match:
                     num_str = percent_match.group(1)
-                    num_str = num_str.replace('.', '').replace(',', '.')
-                    ty_le_menh_gia = float(num_str)
+                    ty_le_menh_gia = parse_vietnamese_float(num_str)
                     
             if ty_le_menh_gia is None and gia_tri_huong_quyen is not None and don_vi_huong_quyen is not None:
                 import math
@@ -703,9 +766,13 @@ class VSDFetcher:
             end_pos = min(indices) if indices else len(sub_text)
             
             target_sub = sub_text[:end_pos]
-            num_match = re.search(r'(\d+(?:\.\d+)+)', target_sub)
+            num_match = re.search(r'(\d+(?:[.,]\d+)*)', target_sub)
             if num_match:
-                gia_phat_hanh = num_match.group(1)
+                val_clean = num_match.group(1).replace('.', '').split(',')[0]
+                try:
+                    gia_phat_hanh = int(val_clean)
+                except ValueError:
+                    pass
 
         # TieuDe
         tieu_de = title
@@ -720,7 +787,7 @@ class VSDFetcher:
         noi_dung = None
         title_content = tieu_de
 
-        if nhom_quyen in ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Đăng ký Lưu ký", "Thay đổi"]:
+        if nhom_quyen in ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Chứng quyền", "Đăng ký Lưu ký", "Thay đổi"]:
             noi_dung = None
         elif nhom_quyen == "Tin huỷ":
             if "huy dang ky chung khoan" in pre_title or "huy dang ky chung khoan" in pre_text:
@@ -788,7 +855,7 @@ class VSDFetcher:
 
         # is_special
         is_special = 0
-        if nhom_quyen in ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Đăng ký Lưu ký", "Tin huỷ", "Thay đổi"]:
+        if nhom_quyen in ["Hoán đổi chuyển đổi", "Khai báo chứng quyền", "Chứng quyền", "Đăng ký Lưu ký", "Tin huỷ", "Thay đổi"] or ';' in pre_title:
             is_special = 1
 
         # Trả về bản ghi mới theo đúng 25 cột của rules_2finalize.md + các metadata trường dự phòng
@@ -837,7 +904,6 @@ class VSDFetcher:
             'is_special': is_special
         })
         return res
-
     def parse_date(self, date_string):
         """Parse ngày từ string 'dd/mm/yyyy' thành datetime.date"""
         try:
@@ -1468,7 +1534,7 @@ class VSDFetcher:
                             
                     # Merge flags
                     for flag in ['status', 'confirmation_status', 'is_completed', 'is_special']:
-                        if flag in r_old and r_old[flag] is not None:
+                        if flag in r_old and r_old[flag] is not None and not pd.isna(r_old[flag]):
                             if flag == 'status' and r_old[flag] == 'pending':
                                 continue
                             if flag == 'confirmation_status' and r_old[flag] == 'awaiting_review':
@@ -1517,7 +1583,7 @@ class VSDFetcher:
                             
                     # Merge
                     for flag in ['status', 'confirmation_status', 'is_completed', 'is_special']:
-                        if flag in r_non and r_non[flag] is not None:
+                        if flag in r_non and r_non[flag] is not None and not pd.isna(r_non[flag]):
                             if flag == 'status' and r_non[flag] == 'pending':
                                 continue
                             if flag == 'confirmation_status' and r_non[flag] == 'awaiting_review':
