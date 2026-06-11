@@ -29,14 +29,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 pandas openpyxl
+          pip install -r scripts/requirements.txt
 
       - name: Fetch VSD data
         env:
           RUN_MODE: KEEP_DAYS
           KEEP_DAYS: 7
+          LLM_TIMEOUT: 2
         run: |
-          python scripts/fetch_vsd.py > /tmp/vsd_output.json 2>&1
+          python scripts/fetch_vsd_llm_hybrid.py > /tmp/vsd_output.json 2>&1
           cat /tmp/vsd_output.json
 
       - name: Load VSD data
