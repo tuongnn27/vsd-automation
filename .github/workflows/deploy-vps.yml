@@ -35,7 +35,10 @@ jobs:
         env:
           RUN_MODE: KEEP_DAYS
           KEEP_DAYS: 7
-          LLM_TIMEOUT: 2
+          LLM_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: "gemini-2.5-flash"
+          LLM_TIMEOUT: 30
         run: |
           python scripts/fetch_vsd_llm_hybrid.py > /tmp/vsd_output.json 2>&1
           cat /tmp/vsd_output.json
