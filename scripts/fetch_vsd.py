@@ -2375,11 +2375,13 @@ def main():
                     'message': f'Error saving JSON: {str(e)}'
                 }
 
-    # Output JSON
+    # Output JSON (remove 'data' to avoid printing massive target data to console)
+    console_result = dict(result)
+    console_result.pop('data', None)
     try:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(console_result, ensure_ascii=False, indent=2))
     except UnicodeEncodeError:
-        print(json.dumps(result, ensure_ascii=True, indent=2))
+        print(json.dumps(console_result, ensure_ascii=True, indent=2))
 
 if __name__ == '__main__':
     main()
