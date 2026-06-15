@@ -75,6 +75,9 @@ logger = logging.getLogger(__name__)
 # --- PYDANTIC SCHEMAS CHO LLM STRUCTURED OUTPUTS ---
 
 class VsdSingleExtraction(BaseModel):
+    trich_dan_nguon: str = Field(
+        description="Đoạn văn bản nguyên văn trích từ CONTEXT trực tiếp mô tả quyền này. Trường này bắt buộc phải điền đầu tiên để định vị chính xác thông tin, tuyệt đối không được lẫn lộn với các phần mô tả của quyền khác."
+    )
     ly_do_muc_dich: str = Field(
         description="Lý do mục đích cụ thể của quyền này (ví dụ: 'Chi trả cổ tức bằng tiền năm 2025' hoặc 'Thực hiện quyền mua cổ phiếu', 'Tổ chức Đại hội đồng cổ đông thường niên năm 2026')"
     )
@@ -390,22 +393,34 @@ def normalize_ratio(ratio_str: str) -> tuple:
     if not ratio_str:
         return None, None
 
-    # Loại bỏ dấu ngoặc mô tả chữ, ví dụ: '01 (một) trái phiếu' -> '01 trái phiếu'
-    ratio_str_clean = re.sub(r'\(\s*[^)]+\s*\)', '', ratio_str)
+    # CHỈ loại bỏ ngoặc đơn nếu bên trong KHÔNG chứa chữ số (ví dụ '(một)', '(hai)')
+    # Điều này giúp giữ lại '(01 cổ phiếu được nhận 180 đồng)' nguyên vẹn
+    ratio_str_clean = re.sub(r'\(\s*[^)\d]+\s*\)', '', ratio_str)
     
-    # Tìm các số trong chuỗi. Số có thể có dấu chấm phần nghìn và dấu phẩy thập phân
-    # Ví dụ: 100 và 73.500,7476
-    numbers = re.findall(r'(\d+(?:\.\d+)*(?:\,\d+)?)', ratio_str_clean)
-    if len(numbers) < 2:
-        # Thử tìm theo định dạng X:Y hoặc X/Y
-        match = re.search(r'(\d+)\s*[:/]\s*(\d+)', ratio_str_clean)
-        if match:
-            numbers = [match.group(1), match.group(2)]
+    clean_lower = remove_accents_and_lower(ratio_str_clean)
+    
+    # 1. Tìm theo mẫu có cấu trúc: X cổ phiếu/trái phiếu... được nhận Y
+    pattern_a = re.search(
+        r'(\d+)\s*(?:co phieu|trai phieu|chung chi quy)[^0-9\n]*(\d+(?:\.\d+)*(?:\,\d+)?)',
+        clean_lower
+    )
+    if pattern_a:
+        x_raw = pattern_a.group(1)
+        y_raw = pattern_a.group(2)
+    else:
+        # 2. Tìm theo định dạng X:Y hoặc X/Y
+        pattern_c = re.search(r'(\d+)\s*[:/]\s*(\d+(?:\.\d+)*(?:\,\d+)?)', clean_lower)
+        if pattern_c:
+            x_raw = pattern_c.group(1)
+            y_raw = pattern_c.group(2)
         else:
-            return None, None
-
-    x_raw = numbers[0]
-    y_raw = numbers[1]
+            # 3. Phương án dự phòng cuối: tìm tất cả các số và lấy 2 số đầu tiên
+            numbers = re.findall(r'(\d+(?:\.\d+)*(?:\,\d+)?)', ratio_str_clean)
+            if len(numbers) >= 2:
+                x_raw = numbers[0]
+                y_raw = numbers[1]
+            else:
+                return None, None
 
     try:
         # Chuẩn hóa x_raw thành số nguyên (Đơn vị thường là số nguyên như 1, 100, 1000)
@@ -525,41 +540,73 @@ class VSDFetcher:
 Your task is to analyze the VSD (Vietnam Securities Depository) announcement provided in <CONTEXT> and extract all distinct corporate actions/rights into the 'extractions' list.
 
 CRITICAL RULES FOR EXTRACTION:
-1. RIGHTS CLASSIFICATION (nhom_quyen & loai_quyen):
+1. INFORMATION ISOLATION (Ngăn ngừa lẫn lộn thông tin):
+   - A document may contain multiple corporate actions/rights (e.g., Cash Dividend and Stock Dividend described in different sections).
+   - For each corporate action, identify its specific section/paragraph. You MUST extract attributes (ratios, dates, payment dates) ONLY from that specific section. Do not mix or swap attributes between different sections.
+   - If a date (e.g., ngày đăng ký cuối cùng / ngày chốt) is mentioned as a general date for the entire announcement (usually at the beginning or end of the document), apply it to all relevant corporate actions. If a date is mentioned within a specific section, only apply it to that specific action.
+
+2. TRICH DAN NGUON (Source quoting):
+   - For each extraction, you MUST first fill in the 'trich_dan_nguon' field with the exact text segment describing the right from the CONTEXT. This anchors your attention and prevents mixing data.
+
+3. RIGHTS CLASSIFICATION (nhom_quyen & loai_quyen):
    - 'Đăng ký Lưu ký': Only classify as this if it refers to registering or depositing securities for trading. Ignore references to the organization name "Tổng công ty Lưu ký và Bù trừ chứng khoán Việt Nam (VSDC)" or "tổ chức đăng ký...".
    - 'Tin huỷ': Check title or text for cancellations (e.g. 'hủy đăng ký', 'hủy danh sách').
    - For 'loai_quyen', you MUST strictly follow the Pydantic field description rules.
 
-2. RAW DATE EXTRACTION:
+4. RAW DATE EXTRACTION:
    - For all date fields (ngay_chot_raw, ngay_thuc_hien_raw, ngay_thanh_toan_raw), extract the exact date string as written in the text. E.g., "tháng 12/2025", "ngày 22/12/2025", "ngày 15 tháng 06 năm 2026". Do not calculate or change them.
 
-3. RATIO EXTRACTION (ty_le_thuc_hien_raw):
+5. RATIO EXTRACTION (ty_le_thuc_hien_raw):
    - Capture the complete phrase detailing the execution ratio. E.g., "01 cổ phiếu nhận được 1.000 đồng", "100 cổ phiếu nhận 73.500,7476 cổ phiếu", "10:1", "100:15". Ensure you capture any decimal points.
 
-4. NO HALLUCINATION:
+6. NO HALLUCINATION:
    - If a field is not found in the context, leave it as null.
 
 <CONTEXT>
 {text_content}
 </CONTEXT>"""
 
-        try:
-            response = llm_client.beta.chat.completions.parse(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                response_format=VsdMultipleExtractions,
-                temperature=0,
-                timeout=LLM_TIMEOUT
-            )
-            parsed_result = response.choices[0].message.parsed
-            if parsed_result and parsed_result.extractions:
-                return [ext.model_dump() for ext in parsed_result.extractions]
-            return []
-        except Exception as e:
-            logger.error(f"✗ Error calling LLM for structured extraction: {e}")
-            return []
+        max_retries = 3
+        backoff_factor = 20  # Đợi 20s, 40s,... giữa các lần thử lại khi gặp lỗi 429
+        result_extractions = []
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    wait_time = backoff_factor * attempt
+                    logger.info(f"  ⚠ Bị giới hạn tần suất (429). Đang chờ {wait_time} giây trước khi thử lại (Lần {attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                
+                response = llm_client.beta.chat.completions.parse(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format=VsdMultipleExtractions,
+                    temperature=0,
+                    timeout=LLM_TIMEOUT
+                )
+                parsed_result = response.choices[0].message.parsed
+                if parsed_result and parsed_result.extractions:
+                    result_extractions = [ext.model_dump() for ext in parsed_result.extractions]
+                break  # Thành công, thoát vòng lặp retry
+            except openai.RateLimitError as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"✗ Vượt quá giới hạn tần suất sau {max_retries} lần thử: {e}")
+                continue
+            except Exception as e:
+                # Bắt lỗi 429 trả về dưới dạng Exception khác hoặc thông báo chuỗi
+                err_msg = str(e).lower()
+                if "429" in err_msg or "rate limit" in err_msg or "quota" in err_msg or "too many requests" in err_msg:
+                    if attempt == max_retries - 1:
+                        logger.error(f"✗ Vượt quá giới hạn tần suất/quota sau {max_retries} lần thử: {e}")
+                    continue
+                logger.error(f"✗ Lỗi khi gọi LLM để trích xuất: {e}")
+                break
+        
+        # Áp dụng Throttling (ngủ 4 giây sau mỗi lần gọi LLM để khống chế dưới 15 RPM)
+        time.sleep(5)
+        return result_extractions
 
     # --- POST-PROCESSING LLM DATA WITH PYTHON ---
     
@@ -694,7 +741,8 @@ CRITICAL RULES FOR EXTRACTION:
             noi_dung = ly_do_muc_dich
         else:
             # Ghép chuỗi chuẩn format tiếng Việt
-            orig_text = base_record.get('text_content', '')
+            # Cô lập phạm vi tìm kiếm thông tin bằng cách ưu tiên sử dụng đoạn văn bản nguồn được LLM trích xuất cho quyền này
+            orig_text = ext_raw.get('trich_dan_nguon') or base_record.get('text_content', '')
             parts_list = [ly_do_muc_dich]
             
             ty_le_info = extract_original_line_by_keyword(orig_text, ["ty le thuc hien", "ty le thanh toan"])
@@ -2344,10 +2392,13 @@ def main():
                     'message': f'Error saving JSON: {str(e)}'
                 }
 
+    # Output JSON (remove 'data' to avoid printing massive target data to console)
+    console_result = dict(result)
+    console_result.pop('data', None)
     try:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(console_result, ensure_ascii=False, indent=2))
     except UnicodeEncodeError:
-        print(json.dumps(result, ensure_ascii=True, indent=2))
+        print(json.dumps(console_result, ensure_ascii=True, indent=2))
 
 if __name__ == '__main__':
     main()
