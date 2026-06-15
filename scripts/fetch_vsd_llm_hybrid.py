@@ -384,6 +384,27 @@ def extract_original_line_by_keyword(original_text, keywords):
                 return line.strip()
     return None
 
+def parse_retry_delay(error_obj) -> Optional[float]:
+    """
+    Trích xuất số giây cần chờ (retryDelay) từ thông báo lỗi của Gemini/OpenAI API.
+    Hỗ trợ cả định dạng text lẫn dict/JSON.
+    """
+    if not error_obj:
+        return None
+    err_str = str(error_obj)
+    
+    # 1. Định dạng text của Gemini API: "Please retry in 11.105552559s."
+    match_a = re.search(r'please retry in (\d+(?:\.\d+)?)\s*s', err_str, re.IGNORECASE)
+    if match_a:
+        return float(match_a.group(1))
+        
+    # 2. Định dạng dict trong response: 'retryDelay': '11s' hoặc "retryDelay": "11s"
+    match_b = re.search(r'[\'"]retryDelay[\'"]\s*:\s*[\'"](\d+)\s*s[\'"]', err_str, re.IGNORECASE)
+    if match_b:
+        return float(match_b.group(1))
+        
+    return None
+
 def normalize_ratio(ratio_str: str) -> tuple:
     """
     Hậu xử lý tỷ lệ thực hiện (DonViHuongQuyen X và GiaTriHuongQuyen Y) bằng Python.
@@ -567,15 +588,19 @@ CRITICAL RULES FOR EXTRACTION:
 </CONTEXT>"""
 
         max_retries = 3
-        backoff_factor = 20  # Đợi 20s, 40s,... giữa các lần thử lại khi gặp lỗi 429
         result_extractions = []
+        next_wait_time = 0
         
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
-                    wait_time = backoff_factor * attempt
-                    logger.info(f"  ⚠ Bị giới hạn tần suất (429). Đang chờ {wait_time} giây trước khi thử lại (Lần {attempt + 1}/{max_retries})...")
+                    # Nếu có thời gian chờ cụ thể từ API ở vòng lặp trước, dùng nó, ngược lại dùng lũy tiến 20s
+                    wait_time = next_wait_time if next_wait_time > 0 else (20 * attempt)
+                    logger.info(f"  ⚠ Bị giới hạn tần suất (429). Đang chờ {wait_time:.2f} giây trước khi thử lại (Lần {attempt + 1}/{max_retries})...")
                     time.sleep(wait_time)
+                
+                # Reset next_wait_time cho lần thử này
+                next_wait_time = 0
                 
                 response = llm_client.beta.chat.completions.parse(
                     model=LLM_MODEL,
@@ -591,6 +616,13 @@ CRITICAL RULES FOR EXTRACTION:
                     result_extractions = [ext.model_dump() for ext in parsed_result.extractions]
                 break  # Thành công, thoát vòng lặp retry
             except openai.RateLimitError as e:
+                # Trích xuất retry delay từ lỗi
+                delay = parse_retry_delay(e)
+                if delay:
+                    next_wait_time = delay + 2.0  # Cộng thêm 2 giây buffer cho an toàn
+                else:
+                    next_wait_time = 20 * (attempt + 1)
+                    
                 if attempt == max_retries - 1:
                     logger.error(f"✗ Vượt quá giới hạn tần suất sau {max_retries} lần thử: {e}")
                 continue
@@ -598,13 +630,19 @@ CRITICAL RULES FOR EXTRACTION:
                 # Bắt lỗi 429 trả về dưới dạng Exception khác hoặc thông báo chuỗi
                 err_msg = str(e).lower()
                 if "429" in err_msg or "rate limit" in err_msg or "quota" in err_msg or "too many requests" in err_msg:
+                    delay = parse_retry_delay(e)
+                    if delay:
+                        next_wait_time = delay + 2.0
+                    else:
+                        next_wait_time = 20 * (attempt + 1)
+                        
                     if attempt == max_retries - 1:
                         logger.error(f"✗ Vượt quá giới hạn tần suất/quota sau {max_retries} lần thử: {e}")
                     continue
                 logger.error(f"✗ Lỗi khi gọi LLM để trích xuất: {e}")
                 break
         
-        # Áp dụng Throttling (ngủ 4 giây sau mỗi lần gọi LLM để khống chế dưới 15 RPM)
+        # Áp dụng Throttling (ngủ 5 giây sau mỗi lần gọi LLM để khống chế dưới 15 RPM)
         time.sleep(5)
         return result_extractions
 
